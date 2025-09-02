@@ -1,0 +1,283 @@
+# Authentication & Authorization
+
+## 🔐 User Types
+
+### Couples
+
+- **Primary wedding planners** with partner linking
+- **Full access** to wedding management features
+- **Can invite partners** to collaborate
+- **Can manage guests** and RSVPs
+- **Can hire vendors** and manage bookings
+
+### Vendors
+
+- **Service providers** with business profiles
+- **Can create service listings** and portfolios
+- **Can receive inquiries** from couples
+- **Can manage bookings** and availability
+- **Can update business information**
+
+### Guests
+
+- **Limited access** for RSVP functionality
+- **Can view public wedding information**
+- **Can submit RSVPs** through public pages
+- **No access** to private wedding data
+
+## 🔑 Authentication Flow
+
+### Email/Password Authentication
+
+```typescript
+// Supabase Auth configuration
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// Sign up flow
+const signUp = async (
+  email: string,
+  password: string,
+  userType: "couple" | "vendor"
+) => {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        user_type: userType,
+      },
+    },
+  });
+  return { data, error };
+};
+
+// Sign in flow
+const signIn = async (email: string, password: string) => {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  return { data, error };
+};
+```
+
+### Email Verification
+
+- **Required for all accounts** before full access
+- **Custom email templates** for better UX
+- **Verification status tracking** in user profiles
+- **Graceful handling** of unverified users
+
+### Password Reset
+
+- **Secure token generation** for reset links
+- **Time-limited tokens** (24 hours)
+- **Email notification** when password is changed
+- **Session invalidation** on password change
+
+## 🛡️ Authorization Rules
+
+### Protected Routes
+
+```typescript
+// Route protection based on user type
+const ProtectedRoute = ({
+  children,
+  allowedUserTypes = ["couple", "vendor"],
+}: {
+  children: React.ReactNode;
+  allowedUserTypes?: string[];
+}) => {
+  const { user, loading } = useAuth();
+
+  if (loading) return <LoadingSpinner />;
+
+  if (!user) {
+    return <Redirect to="/auth/login" />;
+  }
+
+  if (!allowedUserTypes.includes(user.user_type)) {
+    return <AccessDenied />;
+  }
+
+  return <>{children}</>;
+};
+```
+
+### Role-Based Access Control
+
+```typescript
+// User type checks
+const isCouple = (user: User) => user.user_type === "couple";
+const isVendor = (user: User) => user.user_type === "vendor";
+const isGuest = (user: User) => user.user_type === "guest";
+
+// Feature access control
+const canManageWedding = (user: User, wedding: Wedding) => {
+  return isCouple(user) && wedding.couple_id === user.couple_profile_id;
+};
+
+const canManageVendorProfile = (user: User, vendorId: string) => {
+  return isVendor(user) && user.vendor_profile_id === vendorId;
+};
+```
+
+## 👥 Partner Linking System
+
+### Invitation Flow
+
+```typescript
+// Generate partner invitation
+const generatePartnerInvitation = async (partnerEmail: string) => {
+  const token = generateSecureToken();
+
+  const { data, error } = await supabase.from("partner_invitations").insert({
+    inviter_id: user.id,
+    partner_email: partnerEmail,
+    token: token,
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+  });
+
+  // Send invitation email
+  await sendPartnerInvitationEmail(partnerEmail, token);
+
+  return { data, error };
+};
+
+// Accept partner invitation
+const acceptPartnerInvitation = async (token: string) => {
+  const { data: invitation } = await supabase
+    .from("partner_invitations")
+    .select("*")
+    .eq("token", token)
+    .single();
+
+  if (!invitation || invitation.expires_at < new Date()) {
+    throw new Error("Invalid or expired invitation");
+  }
+
+  // Link partners
+  await supabase
+    .from("couple_profiles")
+    .update({ partner_id: user.id })
+    .eq("user_id", invitation.inviter_id);
+
+  // Delete invitation
+  await supabase.from("partner_invitations").delete().eq("token", token);
+};
+```
+
+### Partner Management
+
+- **Shared data access** for linked partners
+- **Partner activity notifications**
+- **Partner unlinking** with data ownership transfer
+- **Conflict resolution** for simultaneous edits
+
+## 🔄 Session Management
+
+### Session Persistence
+
+```typescript
+// Auth context with session management
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Get initial session
+    const getSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setLoading(false);
+    };
+
+    getSession();
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ user, loading }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+```
+
+### Logout Handling
+
+```typescript
+// Secure logout
+const logout = async () => {
+  // Clear local state
+  setUser(null);
+
+  // Sign out from Supabase
+  await supabase.auth.signOut();
+
+  // Redirect to login
+  router.push("/auth/login");
+};
+```
+
+## 🔒 Security Best Practices
+
+### Password Requirements
+
+- **Minimum 8 characters**
+- **Mix of uppercase, lowercase, numbers, symbols**
+- **No common passwords**
+- **Password strength indicator**
+
+### Account Security
+
+- **Rate limiting** on login attempts
+- **Account lockout** after failed attempts
+- **Suspicious activity detection**
+- **Two-factor authentication** (future enhancement)
+
+### Session Security
+
+- **Secure session tokens**
+- **Automatic session expiry**
+- **Device tracking** for security
+- **Concurrent session limits**
+
+## 📧 Email Templates
+
+### Verification Email
+
+- **Branded design** with MomentMoi styling
+- **Clear call-to-action** button
+- **Security notice** about email verification
+- **Support contact** information
+
+### Partner Invitation
+
+- **Personalized message** from inviter
+- **Wedding details** preview
+- **Clear acceptance instructions**
+- **Expiration warning**
+
+### Password Reset
+
+- **Security-focused messaging**
+- **Clear reset instructions**
+- **Time limit information**
+- **Contact support** if not requested

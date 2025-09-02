@@ -1,0 +1,309 @@
+# Wedding Management Features
+
+## 🎯 Wedding Management Overview
+
+Wedding management is the core feature that allows couples to create and manage their wedding details, including venue information, dates, and basic planning tools.
+
+## 🏗️ Feature Requirements
+
+### Core Functionality
+
+- **Single wedding per couple** initially (MVP approach)
+- **Basic venue and date information**
+- **Simple wedding dashboard**
+- **Countdown to wedding date**
+- **Wedding settings management**
+
+### User Experience
+
+- **Intuitive wedding creation flow**
+- **Clear information hierarchy**
+- **Mobile-first responsive design**
+- **Accessible form components**
+
+## 📊 Data Model
+
+### Wedding Table Structure
+
+```sql
+-- Wedding details
+weddings (
+  id uuid primary key default gen_random_uuid(),
+  couple_id uuid references couple_profiles(id) on delete cascade,
+  ceremony_venue text,
+  reception_venue text,
+  ceremony_time timestamp with time zone,
+  reception_time timestamp with time zone,
+  created_at timestamp with time zone default now()
+);
+```
+
+### Key Fields
+
+- **ceremony_venue**: Name and address of ceremony location
+- **reception_venue**: Name and address of reception location
+- **ceremony_time**: Date and time of ceremony
+- **reception_time**: Date and time of reception
+
+## 🎨 UI Components
+
+### Wedding Creation Wizard
+
+```typescript
+// Multi-step wedding creation form
+interface WeddingCreationWizard {
+  steps: [
+    "basic-info", // Wedding date, couple names
+    "venue-details", // Ceremony and reception venues
+    "timeline", // Ceremony and reception times
+    "confirmation" // Review and confirm
+  ];
+  currentStep: number;
+  weddingData: Partial<Wedding>;
+}
+
+// Form validation schema
+const weddingSchema = z.object({
+  ceremony_venue: z.string().min(1, "Ceremony venue is required"),
+  reception_venue: z.string().min(1, "Reception venue is required"),
+  ceremony_time: z.date().min(new Date(), "Ceremony must be in the future"),
+  reception_time: z.date().min(new Date(), "Reception must be in the future"),
+});
+```
+
+### Wedding Dashboard
+
+```typescript
+// Main wedding dashboard component
+interface WeddingDashboard {
+  wedding: Wedding;
+  stats: {
+    totalGuests: number;
+    confirmedGuests: number;
+    pendingRSVPs: number;
+    daysUntilWedding: number;
+  };
+  quickActions: QuickAction[];
+}
+
+// Quick action buttons
+type QuickAction = {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  color: "primary" | "secondary" | "success";
+};
+```
+
+### Wedding Countdown
+
+```typescript
+// Countdown component
+interface WeddingCountdown {
+  weddingDate: Date;
+  displayFormat: "days" | "detailed";
+  showCelebration: boolean;
+}
+
+// Countdown calculation
+const calculateTimeUntil = (weddingDate: Date) => {
+  const now = new Date();
+  const diff = weddingDate.getTime() - now.getTime();
+
+  return {
+    days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+    hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+    minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+    seconds: Math.floor((diff % (1000 * 60)) / 1000),
+  };
+};
+```
+
+## 🔧 Implementation Guidelines
+
+### Form Components
+
+- **Use React Hook Form** for form management
+- **Implement Zod validation** for all form fields
+- **Show validation errors inline** with clear messaging
+- **Use floating labels** for better UX
+- **Implement proper loading states** during submission
+
+### Data Fetching
+
+```typescript
+// Wedding data fetching hook
+const useWedding = (weddingId: string) => {
+  const { data, error, loading, refetch } = useSWR(
+    weddingId ? `/api/weddings/${weddingId}` : null,
+    fetcher
+  );
+
+  return {
+    wedding: data,
+    error,
+    loading,
+    refetch,
+  };
+};
+
+// Optimistic updates for better UX
+const updateWedding = async (weddingId: string, updates: Partial<Wedding>) => {
+  // Optimistic update
+  mutate(
+    `/api/weddings/${weddingId}`,
+    { ...currentWedding, ...updates },
+    false
+  );
+
+  try {
+    const response = await fetch(`/api/weddings/${weddingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) throw new Error("Failed to update wedding");
+
+    // Refetch to ensure consistency
+    refetch();
+  } catch (error) {
+    // Revert optimistic update on error
+    refetch();
+    throw error;
+  }
+};
+```
+
+### Error Handling
+
+```typescript
+// Error boundary for wedding components
+class WeddingErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Wedding error:", error, errorInfo);
+    // Log to error tracking service
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <WeddingErrorFallback error={this.state.error} />;
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+## 📱 Mobile Considerations
+
+### Responsive Design
+
+- **Mobile-first approach** for all components
+- **Touch-friendly form inputs** with proper sizing
+- **Simplified navigation** for mobile users
+- **Optimized images** for mobile loading
+
+### Mobile-Specific Features
+
+```typescript
+// Mobile-optimized wedding dashboard
+const MobileWeddingDashboard = ({ wedding }: { wedding: Wedding }) => {
+  return (
+    <div className="space-y-4 p-4">
+      <WeddingCountdown weddingDate={wedding.ceremony_time} />
+      <QuickActionsGrid actions={getQuickActions(wedding)} />
+      <WeddingStatsCard stats={getWeddingStats(wedding)} />
+    </div>
+  );
+};
+```
+
+## 🔒 Security & Validation
+
+### Data Validation
+
+```typescript
+// Server-side validation
+const validateWeddingData = (data: any): Wedding => {
+  const schema = z.object({
+    ceremony_venue: z.string().min(1).max(500),
+    reception_venue: z.string().min(1).max(500),
+    ceremony_time: z.date().min(new Date()),
+    reception_time: z.date().min(new Date()),
+  });
+
+  return schema.parse(data);
+};
+```
+
+### Access Control
+
+```typescript
+// Check if user can manage wedding
+const canManageWedding = (user: User, wedding: Wedding): boolean => {
+  return user.couple_profile_id === wedding.couple_id;
+};
+
+// Protected wedding management route
+const ProtectedWeddingRoute = ({ weddingId, children }) => {
+  const { user } = useAuth();
+  const { wedding } = useWedding(weddingId);
+
+  if (!user || !wedding || !canManageWedding(user, wedding)) {
+    return <AccessDenied />;
+  }
+
+  return children;
+};
+```
+
+## 🎯 Success Metrics
+
+### User Engagement
+
+- **Wedding creation completion rate** > 90%
+- **Dashboard visit frequency** > 3 times per week
+- **Settings update frequency** > 1 time per month
+
+### Performance Metrics
+
+- **Page load time** < 2 seconds
+- **Form submission success rate** > 95%
+- **Mobile usability score** > 90
+
+### Error Rates
+
+- **Form validation errors** < 5%
+- **API error rate** < 1%
+- **User-reported issues** < 2%
+
+## 🚀 Future Enhancements
+
+### Post-MVP Features
+
+- **Multiple venue support** (ceremony, reception, rehearsal dinner)
+- **Wedding timeline management**
+- **Vendor integration** with wedding details
+- **Guest list integration** with venue capacity
+- **Budget integration** with venue costs
+- **Photo gallery** for venue images
+- **Map integration** for venue locations
+
+### Advanced Features
+
+- **Wedding website generation** from wedding details
+- **RSVP integration** with venue capacity
+- **Vendor recommendations** based on venue
+- **Wedding day timeline** with vendor coordination
+- **Guest transportation** coordination
+- **Weather integration** for outdoor venues

@@ -1,0 +1,270 @@
+# Database Schema & Security
+
+## 🗄️ Core Tables Structure
+
+### Users and Profiles
+
+```sql
+-- Main user profiles table
+profiles (
+  id uuid primary key references auth.users(id),
+  email text unique not null,
+  full_name text,
+  avatar_url text,
+  user_type text check (user_type in ('couple', 'vendor', 'guest')),
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- Couple-specific profiles
+couple_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id) on delete cascade,
+  partner_id uuid references profiles(id),
+  wedding_date date,
+  location text,
+  created_at timestamp with time zone default now()
+);
+
+-- Vendor-specific profiles
+vendor_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id) on delete cascade,
+  business_name text not null,
+  description text,
+  logo_url text,
+  verified boolean default false,
+  created_at timestamp with time zone default now()
+);
+```
+
+### Wedding Management
+
+```sql
+-- Wedding details
+weddings (
+  id uuid primary key default gen_random_uuid(),
+  couple_id uuid references couple_profiles(id) on delete cascade,
+  ceremony_venue text,
+  reception_venue text,
+  ceremony_time timestamp with time zone,
+  reception_time timestamp with time zone,
+  created_at timestamp with time zone default now()
+);
+
+-- Guest management
+guests (
+  id uuid primary key default gen_random_uuid(),
+  wedding_id uuid references weddings(id) on delete cascade,
+  name text not null,
+  email text,
+  phone text,
+  rsvp_status text check (rsvp_status in ('pending', 'attending', 'declined')),
+  dietary_restrictions text,
+  created_at timestamp with time zone default now()
+);
+```
+
+### Vendor System
+
+```sql
+-- Service categories
+service_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  icon text,
+  description text,
+  created_at timestamp with time zone default now()
+);
+
+-- Vendor services
+vendor_services (
+  id uuid primary key default gen_random_uuid(),
+  vendor_id uuid references vendor_profiles(id) on delete cascade,
+  category_id uuid references service_categories(id),
+  name text not null,
+  description text,
+  pricing_model jsonb,
+  created_at timestamp with time zone default now()
+);
+
+-- Wedding-vendor relationships
+wedding_vendors (
+  id uuid primary key default gen_random_uuid(),
+  wedding_id uuid references weddings(id) on delete cascade,
+  vendor_id uuid references vendor_profiles(id) on delete cascade,
+  status text check (status in ('bookmarked', 'contacted', 'hired')),
+  notes text,
+  created_at timestamp with time zone default now()
+);
+```
+
+### Planning Tools
+
+```sql
+-- Checklist items
+checklist_items (
+  id uuid primary key default gen_random_uuid(),
+  wedding_id uuid references weddings(id) on delete cascade,
+  title text not null,
+  description text,
+  due_date date,
+  completed boolean default false,
+  created_at timestamp with time zone default now()
+);
+
+-- Budget items
+budget_items (
+  id uuid primary key default gen_random_uuid(),
+  wedding_id uuid references weddings(id) on delete cascade,
+  category text not null,
+  name text not null,
+  estimated_cost decimal(10,2),
+  actual_cost decimal(10,2),
+  created_at timestamp with time zone default now()
+);
+```
+
+## 🔐 Row Level Security (RLS) Policies
+
+### Profiles Table
+
+```sql
+-- Enable RLS
+alter table profiles enable row level security;
+
+-- Users can only access their own profile
+create policy "Users can view own profile" on profiles
+  for select using (auth.uid() = id);
+
+-- Users can update their own profile
+create policy "Users can update own profile" on profiles
+  for update using (auth.uid() = id);
+```
+
+### Couple Profiles
+
+```sql
+-- Enable RLS
+alter table couple_profiles enable row level security;
+
+-- Users can access their own couple profile
+create policy "Users can access own couple profile" on couple_profiles
+  for all using (auth.uid() = user_id or auth.uid() = partner_id);
+```
+
+### Weddings
+
+```sql
+-- Enable RLS
+alter table weddings enable row level security;
+
+-- Couples can access their wedding data
+create policy "Couples can access wedding data" on weddings
+  for all using (
+    exists (
+      select 1 from couple_profiles cp
+      where cp.id = weddings.couple_id
+      and (cp.user_id = auth.uid() or cp.partner_id = auth.uid())
+    )
+  );
+```
+
+### Guests
+
+```sql
+-- Enable RLS
+alter table guests enable row level security;
+
+-- Wedding owners can manage guests
+create policy "Wedding owners can manage guests" on guests
+  for all using (
+    exists (
+      select 1 from weddings w
+      join couple_profiles cp on cp.id = w.couple_id
+      where w.id = guests.wedding_id
+      and (cp.user_id = auth.uid() or cp.partner_id = auth.uid())
+    )
+  );
+```
+
+### Vendor Profiles
+
+```sql
+-- Enable RLS
+alter table vendor_profiles enable row level security;
+
+-- Vendors can only access their own profile
+create policy "Vendors can access own profile" on vendor_profiles
+  for all using (auth.uid() = user_id);
+```
+
+## 📊 Database Indexes
+
+### Performance Indexes
+
+```sql
+-- Profiles
+create index idx_profiles_email on profiles(email);
+create index idx_profiles_user_type on profiles(user_type);
+
+-- Couple profiles
+create index idx_couple_profiles_user_id on couple_profiles(user_id);
+create index idx_couple_profiles_partner_id on couple_profiles(partner_id);
+
+-- Weddings
+create index idx_weddings_couple_id on weddings(couple_id);
+create index idx_weddings_date on weddings(ceremony_time);
+
+-- Guests
+create index idx_guests_wedding_id on guests(wedding_id);
+create index idx_guests_rsvp_status on guests(rsvp_status);
+
+-- Vendor services
+create index idx_vendor_services_vendor_id on vendor_services(vendor_id);
+create index idx_vendor_services_category_id on vendor_services(category_id);
+
+-- Wedding vendors
+create index idx_wedding_vendors_wedding_id on wedding_vendors(wedding_id);
+create index idx_wedding_vendors_vendor_id on wedding_vendors(vendor_id);
+```
+
+## 🔒 Security Rules
+
+### Data Access Control
+
+- **Users can only access their own data**
+- **Couples can access shared wedding data**
+- **Vendors can only access their own business data**
+- **Public wedding sites use separate, limited access**
+
+### Input Validation
+
+- **Validate all user inputs** before database storage
+- **Sanitize data** to prevent SQL injection
+- **Use parameterized queries** for all database operations
+- **Validate file uploads** and image types
+
+### Data Protection
+
+- **All user data encrypted at rest**
+- **HTTPS only in production**
+- **Proper session management**
+- **Regular security audits**
+- **GDPR compliance considerations**
+
+## 🔄 Database Migrations
+
+### Migration Strategy
+
+- **Version-controlled migrations** using Supabase migrations
+- **Backward compatibility** for schema changes
+- **Data migration scripts** for complex changes
+- **Rollback procedures** for failed migrations
+
+### Migration Best Practices
+
+- **Test migrations** in development first
+- **Backup data** before production migrations
+- **Use transactions** for atomic migrations
+- **Document breaking changes**

@@ -1,0 +1,94 @@
+# Architecture Overview
+
+## 🎯 Project Overview
+
+MomentMoi is a sophisticated wedding planning platform built with Next.js 14, TypeScript, TailwindCSS, and Supabase. The platform serves both couples planning weddings and vendors providing services.
+
+## 🏗️ Core Technologies
+
+- **Framework**: Next.js 14+ with App Router
+- **Language**: TypeScript (strict mode)
+- **Styling**: TailwindCSS with custom design system
+- **Database**: Supabase (PostgreSQL) with Row Level Security (RLS)
+- **Authentication**: Supabase Auth
+- **UI Components**: Radix UI primitives + custom components
+- **Icons**: Lucide React
+- **State Management**: React Context + Supabase real-time
+
+## 📁 Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router pages
+├── components/             # Reusable UI components
+│   ├── ui/                # Base UI components (Radix + custom)
+│   ├── forms/             # Form components
+│   ├── layout/            # Layout components
+│   └── features/          # Feature-specific components
+├── lib/                   # Utilities and configurations
+├── hooks/                 # Custom React hooks
+├── types/                 # TypeScript type definitions
+└── styles/                # Global styles and Tailwind config
+```
+
+## 🔧 Key Architectural Decisions
+
+### Frontend Architecture
+
+- **App Router**: Use Next.js 14 App Router for file-based routing
+- **Server Components**: Leverage React Server Components for better performance
+- **Client Components**: Use client components only when necessary (interactivity, state)
+- **TypeScript**: Strict mode for type safety and better developer experience
+
+### Backend Architecture
+
+- **Supabase**: Use Supabase as the backend-as-a-service
+- **PostgreSQL**: Leverage PostgreSQL for relational data
+- **Row Level Security**: Implement RLS for data security
+- **Real-time**: Use Supabase real-time for live updates
+
+### State Management
+
+- **Local State**: React useState/useReducer for component state
+- **Global State**: React Context for auth and app-wide state
+- **Server State**: Supabase real-time for database state
+- **Caching**: SWR or React Query for data caching
+
+### Security Model
+
+- **Authentication**: Supabase Auth with email/password
+- **Authorization**: Role-based access control (couples, vendors, guests)
+- **Data Security**: Row Level Security on all tables
+- **Input Validation**: Zod schemas for all user inputs
+
+## 🚀 Performance Considerations
+
+### Frontend Performance
+
+- **Code Splitting**: Automatic with Next.js App Router
+- **Image Optimization**: Next.js Image component
+- **Bundle Optimization**: Tree shaking and dynamic imports
+- **Caching**: Static generation where possible
+
+### Backend Performance
+
+- **Database Indexing**: Proper indexes on frequently queried columns
+- **Query Optimization**: Efficient SQL queries with proper joins
+- **Connection Pooling**: Managed by Supabase
+- **CDN**: Static assets served via CDN
+
+## 🔄 Scalability Considerations
+
+### Horizontal Scaling
+
+- **Stateless Design**: No server-side state dependencies
+- **Database Scaling**: Supabase handles PostgreSQL scaling
+- **CDN**: Global content delivery
+- **Edge Functions**: Serverless functions for API endpoints
+
+### Vertical Scaling
+
+- **Component Optimization**: React.memo for expensive components
+- **Database Optimization**: Proper indexing and query optimization
+- **Caching Strategy**: Multi-level caching (browser, CDN, database)
+- **Resource Management**: Efficient memory and CPU usage

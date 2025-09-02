@@ -1,0 +1,1 @@
+self.__NEXT_FONT_MANIFEST="{\"pages\":{},\"app\":{\"/Users/davidbalian/Desktop/momentmoi-void/src/app/layout\":[\"static/media/155cae559bbd1a77-s.p.woff2\",\"static/media/4de1fea1a954a5b6-s.p.woff2\",\"static/media/6d664cce900333ee-s.p.woff2\",\"static/media/7e0ca203de2658de-s.p.otf\"]},\"appUsingSizeAdjust\":true,\"pagesUsingSizeAdjust\":false}"

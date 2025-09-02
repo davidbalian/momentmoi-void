@@ -1,0 +1,405 @@
+# Git Workflow & Branching Strategy
+
+## 🔄 Git Workflow Overview
+
+We follow a **feature branch workflow** with clear branching conventions, code review requirements, and deployment strategies.
+
+## 🌿 Branching Strategy
+
+### Main Branches
+
+#### `main` Branch
+
+- **Production-ready code** only
+- **Protected branch** - no direct pushes
+- **Automated deployments** to production
+- **Requires pull request** with approval
+
+#### `develop` Branch
+
+- **Integration branch** for features
+- **Staging environment** deployment
+- **Feature branch target** for merging
+- **Requires pull request** with approval
+
+### Feature Branches
+
+#### Branch Naming Convention
+
+```
+feature/description-of-feature
+fix/description-of-bug
+hotfix/urgent-production-fix
+chore/maintenance-task
+docs/documentation-update
+```
+
+#### Examples
+
+```
+feature/wedding-creation-wizard
+feature/guest-rsvp-system
+fix/login-validation-error
+hotfix/critical-security-patch
+chore/update-dependencies
+docs/api-documentation
+```
+
+## 🔄 Development Workflow
+
+### 1. Starting a New Feature
+
+```bash
+# Ensure you're on develop and it's up to date
+git checkout develop
+git pull origin develop
+
+# Create and switch to feature branch
+git checkout -b feature/wedding-creation-wizard
+
+# Start development
+# ... make changes ...
+```
+
+### 2. During Development
+
+```bash
+# Regular commits with descriptive messages
+git add .
+git commit -m "feat: add wedding creation form validation"
+
+# Push feature branch to remote
+git push origin feature/wedding-creation-wizard
+
+# Keep feature branch up to date with develop
+git checkout develop
+git pull origin develop
+git checkout feature/wedding-creation-wizard
+git merge develop
+```
+
+### 3. Completing a Feature
+
+```bash
+# Ensure all tests pass
+npm run test
+npm run lint
+npm run type-check
+
+# Squash commits if needed
+git rebase -i develop
+
+# Push final changes
+git push origin feature/wedding-creation-wizard --force-with-lease
+```
+
+## 📝 Commit Message Convention
+
+### Conventional Commits Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Commit Types
+
+- **feat**: New feature
+- **fix**: Bug fix
+- **docs**: Documentation changes
+- **style**: Code style changes (formatting, etc.)
+- **refactor**: Code refactoring
+- **test**: Adding or updating tests
+- **chore**: Maintenance tasks, dependencies, etc.
+
+### Examples
+
+```
+feat(auth): add email verification flow
+fix(wedding): resolve date picker timezone issue
+docs(api): update authentication endpoints
+style(components): format with prettier
+refactor(hooks): extract wedding data logic
+test(forms): add validation tests
+chore(deps): update react to 18.2.0
+```
+
+### Commit Message Guidelines
+
+- **Use present tense** ("add" not "added")
+- **Use imperative mood** ("move cursor" not "moves cursor")
+- **Don't capitalize** the first letter
+- **No period** at the end
+- **Keep it under 72 characters** for the first line
+
+## 🔍 Pull Request Process
+
+### Creating a Pull Request
+
+1. **Title**: Clear, descriptive title
+2. **Description**: Detailed description of changes
+3. **Linked Issues**: Reference related issues
+4. **Screenshots**: For UI changes
+5. **Testing**: Describe how to test
+
+### Pull Request Template
+
+```markdown
+## Description
+
+Brief description of changes
+
+## Type of Change
+
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Testing
+
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+- [ ] Mobile testing completed
+
+## Screenshots
+
+Add screenshots for UI changes
+
+## Checklist
+
+- [ ] Code follows style guidelines
+- [ ] Self-review completed
+- [ ] Documentation updated
+- [ ] No console errors
+- [ ] Accessibility tested
+```
+
+### Review Process
+
+#### Required Approvals
+
+- **Minimum 1 approval** for feature branches
+- **Minimum 2 approvals** for critical changes
+- **Code owner approval** for specific areas
+
+#### Review Guidelines
+
+- **Code quality** and best practices
+- **Functionality** and edge cases
+- **Performance** implications
+- **Security** considerations
+- **Accessibility** compliance
+- **Mobile responsiveness**
+
+#### Review Comments
+
+- **Constructive feedback** only
+- **Specific suggestions** for improvements
+- **Questions** for clarification
+- **Praise** for good work
+
+## 🚀 Deployment Strategy
+
+### Environment Branches
+
+#### `main` → Production
+
+- **Automatic deployment** on merge
+- **Production environment**
+- **Live user traffic**
+- **Monitoring and alerts**
+
+#### `develop` → Staging
+
+- **Automatic deployment** on merge
+- **Staging environment**
+- **Testing and QA**
+- **Pre-production validation**
+
+### Deployment Process
+
+```bash
+# Feature branch → develop (staging)
+git checkout develop
+git merge feature/wedding-creation-wizard
+git push origin develop
+# Automatic deployment to staging
+
+# develop → main (production)
+git checkout main
+git merge develop
+git push origin main
+# Automatic deployment to production
+```
+
+## 🔧 Git Configuration
+
+### Global Git Config
+
+```bash
+# Set up user information
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+
+# Set up default branch
+git config --global init.defaultBranch main
+
+# Set up line ending handling
+git config --global core.autocrlf input  # macOS/Linux
+git config --global core.autocrlf true   # Windows
+```
+
+### Repository-Specific Config
+
+```bash
+# Set up branch protection
+git config branch.main.protect true
+git config branch.develop.protect true
+
+# Set up merge strategy
+git config pull.rebase true
+git config merge.ff only
+```
+
+## 🛡️ Branch Protection Rules
+
+### Main Branch Protection
+
+- **Require pull request reviews**
+- **Require status checks to pass**
+- **Require branches to be up to date**
+- **Restrict pushes**
+- **Require linear history**
+
+### Develop Branch Protection
+
+- **Require pull request reviews**
+- **Require status checks to pass**
+- **Allow force pushes** (for maintainers only)
+- **Require linear history**
+
+## 🔄 Release Management
+
+### Release Process
+
+#### 1. Version Bumping
+
+```bash
+# Bump version (patch, minor, major)
+npm version patch  # 1.0.0 → 1.0.1
+npm version minor  # 1.0.1 → 1.1.0
+npm version major  # 1.1.0 → 2.0.0
+```
+
+#### 2. Release Branch
+
+```bash
+# Create release branch
+git checkout -b release/v1.1.0 develop
+
+# Final testing and fixes
+# ... testing and bug fixes ...
+
+# Merge to main and develop
+git checkout main
+git merge release/v1.1.0
+git tag v1.1.0
+git push origin main --tags
+
+git checkout develop
+git merge release/v1.1.0
+git push origin develop
+
+# Delete release branch
+git branch -d release/v1.1.0
+```
+
+### Hotfix Process
+
+#### 1. Create Hotfix Branch
+
+```bash
+# Create hotfix from main
+git checkout main
+git checkout -b hotfix/critical-security-fix
+```
+
+#### 2. Fix and Deploy
+
+```bash
+# Make critical fix
+# ... fix the issue ...
+
+# Commit and push
+git commit -m "fix: critical security vulnerability"
+git push origin hotfix/critical-security-fix
+```
+
+#### 3. Merge to Main and Develop
+
+```bash
+# Merge to main (immediate deployment)
+git checkout main
+git merge hotfix/critical-security-fix
+git tag v1.0.1
+git push origin main --tags
+
+# Merge to develop
+git checkout develop
+git merge hotfix/critical-security-fix
+git push origin develop
+
+# Delete hotfix branch
+git branch -d hotfix/critical-security-fix
+```
+
+## 📊 Git Best Practices
+
+### General Guidelines
+
+- **Commit frequently** with small, logical changes
+- **Write clear commit messages**
+- **Keep branches short-lived** (1-2 weeks max)
+- **Test before committing**
+- **Review your own code** before requesting review
+
+### Code Quality
+
+- **Run linting** before committing
+- **Run tests** before pushing
+- **Check TypeScript** compilation
+- **Verify accessibility** standards
+- **Test on mobile devices**
+
+### Collaboration
+
+- **Communicate** with team about changes
+- **Update documentation** when needed
+- **Help review** other team members' code
+- **Share knowledge** and best practices
+- **Be respectful** in code reviews
+
+## 🚨 Emergency Procedures
+
+### Critical Bug in Production
+
+1. **Create hotfix branch** from main
+2. **Fix the issue** immediately
+3. **Test thoroughly** in staging
+4. **Deploy to production** via hotfix merge
+5. **Document the issue** and resolution
+6. **Plan prevention** measures
+
+### Rollback Procedure
+
+1. **Identify the problematic commit**
+2. **Create rollback branch** from previous stable commit
+3. **Deploy rollback** to production
+4. **Investigate** the root cause
+5. **Fix and redeploy** when ready
+6. **Update monitoring** and alerts

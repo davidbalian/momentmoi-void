@@ -1,0 +1,307 @@
+"use client";
+
+import React, { useState, useRef, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { Card } from "@/components/ui/Card";
+import { SkeletonUserProfile } from "@/components/ui/Skeleton";
+import { useAuth } from "@/contexts/AuthContext";
+import { useClientDashboard } from "@/hooks/useClientDashboard";
+import { EventCountdown } from "@/components/features/dashboard/EventCountdown";
+import { createClientComponentClient } from "@/lib/supabase";
+
+interface ClientSidebarItem {
+  label: string;
+  href: string;
+  icon: keyof typeof import("lucide-react");
+  badge?: string;
+}
+
+interface ClientSidebarProps {
+  className?: string;
+}
+
+const plannerSidebarItems: ClientSidebarItem[] = [
+  {
+    label: "Dashboard",
+    href: "/dashboard/client",
+    icon: "LayoutDashboard",
+  },
+  {
+    label: "Event Details",
+    href: "/dashboard/client/event",
+    icon: "Calendar",
+  },
+  {
+    label: "Vendors",
+    href: "/dashboard/client/vendors",
+    icon: "Store",
+    badge: "New",
+  },
+  {
+    label: "Guests",
+    href: "/dashboard/client/guests",
+    icon: "Users",
+  },
+  {
+    label: "Checklist",
+    href: "/dashboard/client/checklist",
+    icon: "CheckSquare",
+  },
+  {
+    label: "Budget",
+    href: "/dashboard/client/budget",
+    icon: "DollarSign",
+  },
+  {
+    label: "Settings",
+    href: "/dashboard/client/profile",
+    icon: "Settings",
+  },
+];
+
+const viewerSidebarItems: ClientSidebarItem[] = [
+  {
+    label: "Dashboard",
+    href: "/dashboard/client",
+    icon: "LayoutDashboard",
+  },
+  {
+    label: "Vendors",
+    href: "/dashboard/client/vendors",
+    icon: "Store",
+    badge: "New",
+  },
+  {
+    label: "Saved Vendors",
+    href: "/dashboard/client/favorites",
+    icon: "Heart",
+  },
+  {
+    label: "Settings",
+    href: "/dashboard/client/profile",
+    icon: "Settings",
+  },
+];
+
+export function ClientSidebar({ className }: ClientSidebarProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, signOut, loading: authLoading } = useAuth();
+  const { data: dashboardData } = useClientDashboard();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [userType, setUserType] = useState<"planner" | "viewer" | null>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const supabase = createClientComponentClient();
+
+  // Get user type from profile
+  useEffect(() => {
+    const getUserType = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", user.id)
+          .single();
+
+        if (!error && profile) {
+          setUserType(profile.user_type as "planner" | "viewer");
+        }
+      } catch (err) {
+        console.error("Error getting user type:", err);
+      }
+    };
+
+    getUserType();
+  }, [user?.id, supabase]);
+
+  // Determine which sidebar items to show
+  const sidebarItems =
+    userType === "planner" ? plannerSidebarItems : viewerSidebarItems;
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(event.target as Node)
+      ) {
+        setIsProfileOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      console.log("Starting signout process...");
+      await signOut();
+      console.log("Signout completed, redirecting to homepage...");
+      // Small delay to ensure signout completes
+      setTimeout(() => {
+        router.push("/");
+      }, 100);
+      setIsProfileOpen(false);
+    } catch (error) {
+      console.error("Error during signout:", error);
+      // Still redirect even if there's an error
+      router.push("/");
+      setIsProfileOpen(false);
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col h-full bg-white border-r border-border shadow-sm",
+        className
+      )}
+    >
+      {/* Logo Section */}
+      <div className="flex items-center justify-center h-16 px-4 border-b border-border">
+        <h3 className="text-xl font-semibold text-primary-500">MomentMoi</h3>
+      </div>
+
+      {/* Event Countdown Widget - Only show for planners */}
+      {userType === "planner" && (
+        <div className="px-4 py-4 border-b border-border">
+          <EventCountdown
+            eventDate={
+              dashboardData?.event?.event_date
+                ? new Date(dashboardData.event.event_date)
+                : undefined
+            }
+          />
+        </div>
+      )}
+
+      {/* Navigation Links */}
+      <nav className="flex-1 px-4 py-6 space-y-2">
+        {sidebarItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 relative",
+                isActive
+                  ? "bg-primary-50 text-primary-600 border border-primary-500"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              )}
+            >
+              <Icon
+                name={item.icon}
+                size="sm"
+                className={cn(isActive ? "text-primary-600" : "text-gray-400")}
+              />
+              <span>{item.label}</span>
+              {item.badge && (
+                <span className="ml-auto bg-secondary-500 text-white text-xs px-2 py-1 rounded-full">
+                  {item.badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Partner Collaboration Status - Only show for planners */}
+      {userType === "planner" && (
+        <div className="px-4 py-3 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Icon name="Heart" size="sm" className="text-pink-400" />
+              <span>Planning together</span>
+            </div>
+            <Link
+              href="/dashboard/client/partner"
+              className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+            >
+              Manage
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Section */}
+      <div className="p-4 border-t border-border">
+        <div className="relative" ref={profileRef}>
+          {authLoading ? (
+            <SkeletonUserProfile />
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="md"
+                className="w-full justify-start gap-3 h-auto py-3"
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+              >
+                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
+                  <Icon name="User" size="sm" className="text-primary-600" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-medium text-gray-900">
+                    {user?.user_metadata?.full_name || "User"}
+                  </div>
+                  <div className="text-xs text-gray-500">{user?.email}</div>
+                </div>
+                <Icon
+                  name={isProfileOpen ? "ChevronUp" : "ChevronDown"}
+                  size="sm"
+                  className="text-gray-400"
+                />
+              </Button>
+
+              {/* Profile Dropdown */}
+              {isProfileOpen && (
+                <Card className="absolute bottom-full left-0 right-0 mb-2 p-2 shadow-lg border border-border">
+                  <div className="space-y-1">
+                    <Link
+                      href="/dashboard/client/profile"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors duration-200"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      <Icon name="User" size="sm" className="text-gray-400" />
+                      Profile Settings
+                    </Link>
+                    {userType === "planner" && (
+                      <Link
+                        href="/dashboard/client/partner"
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors duration-200"
+                        onClick={() => setIsProfileOpen(false)}
+                      >
+                        <Icon
+                          name="Heart"
+                          size="sm"
+                          className="text-pink-400"
+                        />
+                        Partner Settings
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200"
+                    >
+                      <Icon name="LogOut" size="sm" className="text-red-400" />
+                      Sign Out
+                    </button>
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

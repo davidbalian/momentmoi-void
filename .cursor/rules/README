@@ -1,0 +1,77 @@
+# MomentMoi Cursor Rules
+
+This directory contains comprehensive development rules for the MomentMoi wedding planning platform, organized by category for better maintainability.
+
+## 📁 Structure
+
+```
+.cursor/rules/
+├── README.md                    # This file - overview and navigation
+├── architecture/                # System architecture and technology stack
+│   ├── overview.md             # Project overview and core technologies
+│   ├── database.md             # Database schema and security rules
+│   └── auth.md                 # Authentication and authorization
+├── design/                      # Design system and UI guidelines
+│   ├── colors.md               # Color palette and theming
+│   ├── typography.md           # Typography system
+│   ├── components.md           # Component development guidelines
+│   └── accessibility.md        # Accessibility requirements
+├── development/                 # Development practices and patterns
+│   ├── phases.md               # Development phases and timeline
+│   ├── state-management.md     # State management rules
+│   └── performance.md          # Performance guidelines
+├── features/                    # Feature-specific implementation rules
+│   ├── wedding-management.md   # Wedding management features
+│   ├── guest-management.md     # Guest and RSVP features
+│   ├── vendor-system.md        # Vendor features
+│   └── planning-tools.md       # Planning and organization tools
+├── quality/                     # Quality assurance and testing
+│   ├── testing.md              # Testing requirements
+│   ├── security.md             # Security and privacy rules
+│   ├── monitoring.md           # Performance monitoring
+│   └── database-safety.md      # Database safety and data integrity rules
+└── workflow/                    # Development workflow and processes
+    ├── git-workflow.md         # Git workflow and branching
+    ├── code-organization.md    # Code organization and structure
+    └── deployment.md           # Deployment and environment management
+```
+
+## 🎯 Quick Reference
+
+### Core Technologies
+
+- **Framework**: Next.js 14+ with App Router
+- **Language**: TypeScript (strict mode)
+- **Styling**: TailwindCSS with custom design system
+- **Database**: Supabase (PostgreSQL) with Row Level Security (RLS)
+- **Authentication**: Supabase Auth
+- **UI Components**: Radix UI primitives + custom components
+
+### Development Philosophy
+
+This is an MVP-focused development approach. Start simple, build core functionality first, and add complexity incrementally. Focus on user value over feature richness, and test with real users early and often.
+
+### Key Principles
+
+- Mobile-first responsive design
+- Accessibility as a core requirement
+- Sophisticated elegance with modern functionality
+- Security-first with Row Level Security
+- Performance optimization from day one
+
+## 📖 How to Use These Rules
+
+1. **For Architecture Decisions**: Check `architecture/` folder
+2. **For UI/UX Guidelines**: Check `design/` folder
+3. **For Development Patterns**: Check `development/` folder
+4. **For Feature Implementation**: Check `features/` folder
+5. **For Quality Assurance**: Check `quality/` folder
+6. **For Workflow Processes**: Check `workflow/` folder
+7. **For Database Safety**: Check `quality/database-safety.md` - CRITICAL for data integrity
+
+## 🔄 Maintenance
+
+- Update rules as the project evolves
+- Keep rules synchronized with actual implementation
+- Review and refine rules based on team feedback
+- Version control all rule changes

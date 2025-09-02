@@ -1,0 +1,399 @@
+# Development Phases & Timeline
+
+## 🚀 MVP Development Approach
+
+This is a streamlined version focused on delivering a functional MVP quickly, with reduced complexity and realistic timelines.
+
+## 🎯 MVP Goal
+
+A wedding planning platform where couples can:
+
+- Create wedding profiles
+- Manage guest lists and RSVPs
+- Find and contact vendors
+- Track basic planning progress
+
+**Total Timeline: 12-14 weeks**
+
+---
+
+## 📋 Phase 1: Foundation (Weeks 1-3)
+
+### 1.1 Basic Setup
+
+- [ ] **Initialize Next.js 14 with TypeScript**
+
+  - Configure app router structure
+  - Set up TailwindCSS with custom configuration
+  - Install and configure ESLint, Prettier
+  - Set up absolute imports with path mapping
+
+- [ ] **Supabase Project Setup**
+
+  - Create Supabase project and configure environment
+  - Set up local development environment with Supabase CLI
+  - Configure environment variables for all environments
+  - Set up database connection and test connectivity
+
+- [ ] **Design System Implementation**
+  - Create TailwindCSS custom theme based on UI design specifications
+  - Implement color palette (sophisticated teal primary, warm accent)
+  - Configure typography system (Ivy Presto Display + Lato)
+  - Set up spacing, border radius, shadow, and z-index scales
+
+### 1.2 Simple Authentication
+
+- [ ] **Supabase Auth Configuration**
+
+  - Configure authentication providers (email/password)
+  - Set up email templates for auth flows
+  - Configure redirect URLs for all environments
+  - Test auth flow in development
+
+- [ ] **Authentication UI Components**
+
+  - Create login form with validation
+  - Create registration form with user type selection (couple/vendor)
+  - Create password reset flow
+  - Create email confirmation pages
+  - Implement form validation with proper error handling
+
+- [ ] **Auth Context & State Management**
+  - Create AuthContext with Supabase session management
+  - Implement protected route wrapper components
+  - Create user session persistence
+  - Add loading states for auth operations
+
+### 1.3 Base Layout & Navigation
+
+- [ ] **Main Layout Components**
+
+  - Create responsive header with navigation
+  - Implement mobile-first hamburger menu
+  - Create footer component
+  - Set up page layout wrapper with consistent spacing
+
+- [ ] **Navigation System**
+  - Implement role-based navigation (couple vs vendor views)
+  - Create breadcrumb component for deep navigation
+  - Add user dropdown with profile/logout options
+  - Implement active state indicators
+
+**Key Simplifications:**
+
+- No partner linking initially
+- Single user per wedding
+- Basic styling only
+- No complex RLS policies
+
+---
+
+## 📋 Phase 2: Wedding Profiles (Weeks 4-5)
+
+### 2.1 Database Schema Implementation
+
+- [ ] **Core Tables Creation**
+
+  - Implement `profiles` table with RLS policies
+  - Create `couple_profiles` table with basic fields
+  - Create `vendor_profiles` table with business information
+  - Set up database indexes for performance
+
+- [ ] **Row Level Security (RLS)**
+  - Implement RLS policies for profiles table
+  - Create policies for couple_profiles (user access only)
+  - Create policies for vendor_profiles (owner access only)
+  - Test security policies thoroughly
+
+### 2.2 Wedding Creation & Management
+
+- [ ] **Wedding Setup Flow**
+
+  - Create wedding creation wizard
+  - Implement basic wedding details forms
+  - Add wedding date picker components
+  - Create venue address input
+
+- [ ] **Wedding Dashboard**
+
+  - Create main wedding dashboard with countdown
+  - Implement wedding overview cards
+  - Add quick action buttons for common tasks
+  - Create wedding settings page
+
+- [ ] **Wedding Information Management**
+  - Create wedding details edit forms
+  - Implement guest count estimation
+  - Add basic wedding timeline display
+
+**Key Simplifications:**
+
+- No separate ceremony/reception complexity
+- No timeline management
+- No budget tracking initially
+- Single venue per wedding
+
+---
+
+## 📋 Phase 3: Guest Management (Weeks 6-7)
+
+### 3.1 Guest Data Model
+
+- [ ] **Guest Database Setup**
+  - Create `guests` table with RSVP tracking
+  - Implement basic guest relationship fields
+  - Set up plus-one handling
+
+### 3.2 Guest List Management
+
+- [ ] **Guest List Interface**
+
+  - Create guest list table with sorting/filtering
+  - Implement individual guest creation/editing
+  - Add guest search functionality
+  - Create guest count summaries
+
+- [ ] **RSVP Tracking System**
+  - Implement RSVP status tracking
+  - Create basic RSVP response collection
+  - Add RSVP analytics dashboard
+
+### 3.3 Simple RSVP Collection
+
+- [ ] **Public RSVP System**
+  - Create public RSVP page with guest lookup by name
+  - Implement basic RSVP form (attending yes/no)
+  - Create RSVP confirmation page
+  - Add guest count tracking
+
+**Key Simplifications:**
+
+- No email invitations initially
+- No dietary restrictions
+- No plus-ones
+- No guest groups or categories
+- Manual guest entry only
+
+---
+
+## 📋 Phase 4: Basic Vendor System (Weeks 8-10)
+
+### 4.1 Vendor Database Schema
+
+- [ ] **Service Category System**
+
+  - Create `service_categories` table with predefined categories
+  - Implement basic service category management
+  - Add category icons and descriptions
+
+- [ ] **Vendor Services Model**
+  - Create `vendor_services` table with basic pricing
+  - Set up basic portfolio image storage
+  - Create simple package details structure
+
+### 4.2 Vendor Profile & Services
+
+- [ ] **Vendor Dashboard**
+
+  - Create vendor main dashboard
+  - Implement basic business metrics display
+  - Add service management overview
+  - Create vendor profile completion guide
+
+- [ ] **Service Management**
+  - Create service creation/editing forms
+  - Implement basic pricing model support
+  - Add portfolio image upload and management
+  - Create service availability settings
+
+### 4.3 Vendor Discovery System
+
+- [ ] **Search & Filter System**
+
+  - Create vendor search with location filtering
+  - Implement service category filtering
+  - Add basic budget range filtering
+
+- [ ] **Vendor Listings**
+
+  - Create vendor card components
+  - Implement vendor profile pages
+  - Add vendor contact forms
+  - Create vendor bookmarking system
+
+- [ ] **Vendor-Wedding Relationships**
+  - Create `wedding_vendors` relationship table
+  - Implement vendor shortlisting system
+  - Add basic vendor hiring status tracking
+
+**Key Simplifications:**
+
+- No complex pricing models
+- No portfolio images initially
+- No messaging system
+- No reviews/ratings
+- Single service category per vendor
+- No booking/hiring status
+- Email contact only
+
+---
+
+## 📋 Phase 5: Basic Planning Tools (Weeks 11-12)
+
+### 5.1 Simple Checklist
+
+- [ ] **Checklist Data Model**
+
+  - Create `checklist_templates` with default tasks
+  - Implement `wedding_checklists` for personalized tasks
+  - Set up basic task completion tracking
+
+- [ ] **Wedding Checklist Interface**
+  - Create interactive checklist display
+  - Implement task completion functionality
+  - Add basic task notes
+  - Create checklist progress tracking
+
+### 5.2 Basic Budget Tracker
+
+- [ ] **Budget Data Model**
+
+  - Create `budget_categories` with typical percentages
+  - Implement `budget_items` with actual vs estimated costs
+  - Set up basic payment tracking system
+
+- [ ] **Budget Planning Interface**
+  - Create budget overview dashboard
+  - Implement budget category breakdown
+  - Add expense tracking and payment status
+  - Create basic budget vs actual reporting
+
+**Key Simplifications:**
+
+- No timeline management
+- No vendor integration with budget
+- No payment tracking
+- Pre-defined categories only
+- No budget percentages or recommendations
+
+---
+
+## 📋 Phase 6: Polish & Launch (Weeks 13-14)
+
+### 6.1 Essential Testing
+
+- [ ] **End-to-End Testing**
+
+  - Test complete user journeys (couple signup to wedding completion)
+  - Test vendor onboarding and service management
+  - Test basic partner linking and collaboration flows
+  - Test public wedding site and RSVP collection
+
+- [ ] **Security Testing**
+  - Verify RLS policies prevent unauthorized access
+  - Test file upload security and validation
+  - Verify data encryption and privacy compliance
+  - Test session management and auth flows
+
+### 6.2 Performance Optimization
+
+- [ ] **Performance Audits**
+
+  - Run Lighthouse audits on all major pages
+  - Optimize image loading and compression
+  - Implement code splitting and lazy loading
+  - Optimize database queries and indexes
+
+- [ ] **Mobile Optimization**
+  - Optimize all interfaces for mobile
+  - Implement touch-friendly interactions
+  - Add mobile-specific navigation patterns
+  - Test on various mobile devices
+
+### 6.3 Simple Deployment
+
+- [ ] **Deployment Setup**
+
+  - Configure production Supabase environment
+  - Set up Vercel deployment pipeline
+  - Configure domain and SSL certificates
+  - Set up environment variable management
+
+- [ ] **Monitoring & Analytics**
+  - Implement basic error tracking
+  - Set up performance monitoring
+  - Configure user analytics (privacy-compliant)
+  - Create operational dashboards
+
+**Key Simplifications:**
+
+- No comprehensive testing suite
+- No performance optimization
+- No accessibility audit initially
+- Basic error handling only
+
+---
+
+## 🎯 Critical Dependencies & Notes
+
+### Phase Dependencies:
+
+- **Phase 1** must be completed before any other phase
+- **Phase 2** must be completed before Phases 3-6
+- **Phase 3** can be developed in parallel with Phase 4
+- **Phase 4** must be completed before vendor features in other phases
+- **Phase 5** requires completion of Phases 2-4
+- **Phase 6** is ongoing throughout and intensive at the end
+
+### Key Architectural Decisions:
+
+- Use Supabase RLS for all data security
+- Implement mobile-first responsive design
+- Build with accessibility as a core requirement
+- Use TypeScript for all components and utilities
+- Implement proper error handling and loading states
+- Use optimistic updates where appropriate for better UX
+
+### Success Criteria:
+
+- All core user journeys work end-to-end
+- Performance scores >90 on Lighthouse
+- Basic accessibility compliance
+- Security audit passes with no critical issues
+- Mobile experience is functional
+- Basic partner collaboration works
+
+---
+
+## 🚀 Future Enhancements (Post-MVP)
+
+After successful MVP launch, add:
+
+- Partner invitation and linking
+- Advanced vendor features (portfolios, messaging)
+- Email invitations and automated RSVPs
+- Public wedding websites
+- Advanced planning tools
+- Mobile app
+- Reviews and ratings
+- Payment processing
+
+---
+
+## 💡 Development Philosophy
+
+**Start Simple:**
+
+- Build core functionality first
+- Add complexity incrementally
+- Focus on user value over feature richness
+- Test with real users early and often
+
+**Technical Debt Management:**
+
+- Code for current requirements, not future complexity
+- Refactor when adding new features
+- Maintain clean, readable code
+- Document architectural decisions
+
+This simplified roadmap focuses on delivering a working product quickly while maintaining the foundation for future growth.
