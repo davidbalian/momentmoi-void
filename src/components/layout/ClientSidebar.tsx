@@ -11,7 +11,6 @@ import { SkeletonUserProfile } from "@/components/ui/Skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClientDashboard } from "@/hooks/useClientDashboard";
 import { EventCountdown } from "@/components/features/dashboard/EventCountdown";
-import { createClientComponentClient } from "@/lib/supabase";
 
 interface ClientSidebarItem {
   label: string;
@@ -84,6 +83,11 @@ const vendorSidebarItems: ClientSidebarItem[] = [
     icon: "Package",
   },
   {
+    label: "Gallery",
+    href: "/dashboard/gallery",
+    icon: "Image",
+  },
+  {
     label: "Inquiries",
     href: "/dashboard/inquiries",
     icon: "MessageSquare",
@@ -126,55 +130,37 @@ const viewerSidebarItems: ClientSidebarItem[] = [
 export function ClientSidebar({ className }: ClientSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, signOut, loading: authLoading } = useAuth();
+  const { user, signOut, loading: authLoading, userType, profile } = useAuth();
   const { data: dashboardData } = useClientDashboard();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [userType, setUserType] = useState<
-    "planner" | "vendor" | "viewer" | null
-  >(null);
   const profileRef = useRef<HTMLDivElement>(null);
-  const supabase = createClientComponentClient();
 
-  // Get user type from profile
-  useEffect(() => {
-    const getUserType = async () => {
-      if (!user?.id) return;
-
-      try {
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("user_type")
-          .eq("id", user.id)
-          .single();
-
-        if (!error && profile) {
-          setUserType(profile.user_type as "planner" | "vendor" | "viewer");
-        } else {
-          // Fallback to user metadata
-          const fallbackType = user.user_metadata?.user_type as
-            | "planner"
-            | "vendor"
-            | "viewer";
-          setUserType(fallbackType || "viewer");
-        }
-      } catch (err) {
-        console.error("Error getting user type:", err);
-      }
-    };
-
-    getUserType();
-  }, [user?.id, supabase]);
+  // User type is now handled centrally in AuthContext
 
   // Determine which sidebar items to show
   const getSidebarItems = (): ClientSidebarItem[] => {
+    console.log(
+      "🎯 Determining sidebar items for userType:",
+      userType,
+      "at",
+      new Date().toISOString()
+    );
     switch (userType) {
       case "planner":
+        console.log("📋 Using planner sidebar items");
         return plannerSidebarItems;
       case "vendor":
+        console.log("📋 Using vendor sidebar items");
         return vendorSidebarItems;
       case "viewer":
+        console.log("📋 Using viewer sidebar items");
         return viewerSidebarItems;
       default:
+        console.log(
+          "📋 Using default (viewer) sidebar items (userType is:",
+          userType,
+          ")"
+        );
         return viewerSidebarItems; // fallback
     }
   };
@@ -248,7 +234,9 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
             <div className="text-sm font-medium text-gray-900">
               Vendor Dashboard
             </div>
-            <div className="text-xs text-gray-500 mt-1">Manage Your Business</div>
+            <div className="text-xs text-gray-500 mt-1">
+              Manage Your Business
+            </div>
           </div>
         </div>
       )}

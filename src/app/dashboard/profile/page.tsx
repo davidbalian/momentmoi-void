@@ -119,6 +119,7 @@ export default function ProfilePage() {
     loading: profileLoading,
     error,
     saveProfile,
+    refetch,
   } = useVendorProfile();
   const router = useRouter();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -309,6 +310,9 @@ export default function ProfilePage() {
 
   // Initialize form data when profile loads or when no profile exists
   useEffect(() => {
+    // Only initialize if we have user data and profile loading is complete
+    if (!user || profileLoading) return;
+
     if (profile) {
       // Profile exists, load data from it
       const newFormData = {
@@ -338,7 +342,7 @@ export default function ProfilePage() {
           isPrimary: c.is_primary,
         }))
       );
-    } else if (!profileLoading && !error) {
+    } else if (!profileLoading && !error && userType === "vendor") {
       // No profile exists yet (new vendor), initialize with defaults
       console.log("No vendor profile found, initializing with defaults");
       const defaultFormData = {
@@ -361,7 +365,7 @@ export default function ProfilePage() {
       setOriginalData(defaultFormData);
       setAdditionalContacts([]);
     }
-  }, [profile, contacts, locations, profileLoading, error, user?.email]);
+  }, [user, profileLoading, profile, contacts, locations, error, userType]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -519,6 +523,8 @@ export default function ProfilePage() {
             isVisible: true,
           });
           setOriginalData(formData);
+          // Refetch profile data to update the UI
+          await refetch();
         } else {
           setToast({
             message: `Error saving profile: ${result.error}`,

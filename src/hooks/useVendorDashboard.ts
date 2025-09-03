@@ -141,6 +141,14 @@ export function useVendorDashboard() {
           .eq("id", user.id)
           .single();
 
+        console.log(`🔍 useVendorDashboard - Profile query result (attempt ${attempt}):`, {
+          userId: user.id,
+          userProfile,
+          userProfileError,
+          userProfileErrorCode: userProfileError?.code,
+          context
+        });
+
         if (userProfileError) {
           console.error("Error getting user profile:", {
             error: userProfileError,
@@ -162,8 +170,17 @@ export function useVendorDashboard() {
           return null;
         }
 
+        console.log("✅ useVendorDashboard - User profile found:", {
+          userId: user.id,
+          userType: userProfile.user_type,
+          context
+        });
+
         if (userProfile.user_type !== 'vendor') {
-          console.log("User is not a vendor, user_type:", userProfile.user_type);
+          console.log("❌ User is not a vendor, user_type:", userProfile.user_type, {
+            userId: user.id,
+            context
+          });
           return null;
         }
 

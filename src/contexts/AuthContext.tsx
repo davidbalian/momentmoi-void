@@ -11,9 +11,25 @@ import {
   createErrorContext,
 } from "@/lib/error-handler";
 
+export type UserType = "planner" | "vendor" | "viewer" | null;
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  user_type: UserType;
+  onboarding_completed: boolean;
+  avatar_url?: string | null;
+  business_name?: string | null;
+  location_preference?: string | null;
+  created_at: string;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  profile: UserProfile | null;
+  userType: UserType;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (
@@ -23,6 +39,7 @@ interface AuthContextType {
   ) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: any }>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,18 +47,81 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [userType, setUserType] = useState<UserType>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClientComponentClient();
 
+  // Fetch user profile from database
+  const fetchUserProfile = async (
+    userId: string
+  ): Promise<UserProfile | null> => {
+    try {
+      console.log("🔍 AuthContext - Fetching user profile for:", userId);
+
+      const { data: profileData, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      if (error) {
+        console.error("❌ AuthContext - Error fetching profile:", error);
+
+        // If profile doesn't exist, return null (will be handled by onboarding)
+        if (error.code === "PGRST116") {
+          console.log("ℹ️ AuthContext - Profile doesn't exist yet");
+          return null;
+        }
+
+        throw error;
+      }
+
+      console.log("✅ AuthContext - Profile fetched successfully:", {
+        userType: profileData.user_type,
+        onboardingCompleted: profileData.onboarding_completed,
+        email: profileData.email,
+      });
+
+      return profileData as UserProfile;
+    } catch (error) {
+      console.error("💥 AuthContext - Error in fetchUserProfile:", error);
+      return null;
+    }
+  };
+
+  // Update profile and userType state
+  const updateProfileState = (newProfile: UserProfile | null) => {
+    setProfile(newProfile);
+    setUserType(newProfile?.user_type || null);
+  };
+
   useEffect(() => {
-    // Get initial session
+    // Get initial session and profile
     const getInitialSession = async () => {
+      console.log("🔐 AuthContext - Getting initial session");
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
       setSession(session);
       setUser(session?.user ?? null);
+
+      // If we have a user, fetch their profile
+      if (session?.user) {
+        console.log("👤 AuthContext - User authenticated, fetching profile");
+        const userProfile = await fetchUserProfile(session.user.id);
+        updateProfileState(userProfile);
+      } else {
+        console.log("👤 AuthContext - No authenticated user");
+        updateProfileState(null);
+      }
+
       setLoading(false);
+      console.log(
+        "✅ AuthContext - Initial session and profile loading complete"
+      );
     };
 
     getInitialSession();
@@ -50,8 +130,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔄 AuthContext - Auth state change:", event);
+
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Handle profile based on auth event
+      if (session?.user) {
+        console.log("👤 AuthContext - User authenticated, fetching profile");
+        const userProfile = await fetchUserProfile(session.user.id);
+        updateProfileState(userProfile);
+      } else {
+        console.log("👤 AuthContext - User signed out, clearing profile");
+        updateProfileState(null);
+      }
+
       setLoading(false);
     });
 
@@ -81,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
 
-      // Log successful signin
+      // Log successful signin and refresh profile
       if (data.user) {
         const userType = data.user.user_metadata?.user_type || "unknown";
 
@@ -99,12 +192,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         );
 
-        console.log("✅ User signed in successfully, profile should exist", {
+        console.log("✅ User signed in successfully, refreshing profile", {
           userId: data.user.id,
           email: email.split("@")[0] + "@***",
           userType,
           lastSignInAt: data.user.last_sign_in_at,
         });
+
+        // Refresh profile data after signin
+        const userProfile = await fetchUserProfile(data.user.id);
+        updateProfileState(userProfile);
       }
 
       return { error: null };
@@ -356,14 +453,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Refresh profile data
+  const refreshProfile = async () => {
+    if (user?.id) {
+      console.log("🔄 AuthContext - Refreshing profile for user:", user.id);
+      const userProfile = await fetchUserProfile(user.id);
+      updateProfileState(userProfile);
+    }
+  };
+
   const value = {
     user,
     session,
+    profile,
+    userType,
     loading,
     signIn,
     signUp,
     signOut,
     resetPassword,
+    refreshProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

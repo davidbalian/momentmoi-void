@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Header } from "@/components/layout/Header";
 import { createClientComponentClient } from "@/lib/supabase";
-import { testVendorCreation } from "@/lib/test-vendor-creation";
+import {
+  testVendorCreation,
+  debugUserProfile,
+} from "@/lib/test-vendor-creation";
 import { testSupabaseConfig } from "@/lib/test-supabase-config";
 import { testVendorOnboardingFlow } from "@/lib/test-vendor-onboarding";
 import {
@@ -44,6 +47,9 @@ export default function DebugPage() {
 
   const testDatabase = () =>
     runTest("database", async () => testVendorCreation());
+
+  const testUserProfile = () =>
+    runTest("userProfile", async () => debugUserProfile());
 
   const testProfileCreation = async () => {
     return runTest("profileCreation", async () => {
@@ -154,6 +160,14 @@ export default function DebugPage() {
                   className="w-full"
                 >
                   Test Database Connection
+                </Button>
+
+                <Button
+                  onClick={testUserProfile}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  Debug Current User Profile
                 </Button>
 
                 <Button

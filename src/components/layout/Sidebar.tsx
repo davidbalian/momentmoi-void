@@ -9,7 +9,6 @@ import { Icon } from "@/components/ui/Icon";
 import { Card } from "@/components/ui/Card";
 import { SkeletonUserProfile } from "@/components/ui/Skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { createClientComponentClient } from "@/lib/supabase";
 
 interface SidebarItem {
   label: string;
@@ -131,48 +130,11 @@ const viewerSidebarItems: SidebarItem[] = [
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, signOut, loading: authLoading } = useAuth();
+  const { user, signOut, loading: authLoading, userType, profile } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [userType, setUserType] = useState<UserType | null>(null);
-  const [userTypeLoading, setUserTypeLoading] = useState(true);
   const profileRef = useRef<HTMLDivElement>(null);
-  const supabase = createClientComponentClient();
 
-  // Get user type from profile
-  useEffect(() => {
-    const getUserType = async () => {
-      if (!user?.id) {
-        setUserTypeLoading(false);
-        return;
-      }
-
-      try {
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("user_type")
-          .eq("id", user.id)
-          .single();
-
-        if (error) {
-          console.error("Error getting user type:", error);
-          // Fallback to user metadata
-          const fallbackType = user.user_metadata?.user_type as UserType;
-          setUserType(fallbackType || "viewer");
-        } else {
-          setUserType(profile?.user_type as UserType);
-        }
-      } catch (err) {
-        console.error("Error getting user type:", err);
-        // Fallback to user metadata
-        const fallbackType = user.user_metadata?.user_type as UserType;
-        setUserType(fallbackType || "viewer");
-      } finally {
-        setUserTypeLoading(false);
-      }
-    };
-
-    getUserType();
-  }, [user?.id, supabase]);
+  // User type is now handled centrally in AuthContext
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -241,7 +203,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation Links */}
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto relative z-10">
-        {userTypeLoading ? (
+        {authLoading || !userType ? (
           // Loading skeleton for navigation items
           <>
             {[...Array(5)].map((_, index) => (

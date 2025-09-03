@@ -385,11 +385,6 @@ export function useVendorProfile(): UseVendorProfileReturn {
         console.log("ℹ️ No locations to insert");
       }
 
-      console.log("🔄 Refetching profile data...");
-      
-      // Refetch data to update the UI
-      await fetchProfile();
-
       console.log("🎉 Profile save completed successfully!");
       return { success: true };
     } catch (err) {

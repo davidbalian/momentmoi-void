@@ -1,5 +1,59 @@
 import { createClientComponentClient } from './supabase'
 
+export async function debugUserProfile(userId?: string) {
+  const supabase = createClientComponentClient();
+
+  try {
+    // If no userId provided, get current user
+    if (!userId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) {
+        return { error: "No authenticated user found" };
+      }
+      userId = user.id;
+    }
+
+    console.log("🔍 Debug: Checking user profile for:", userId);
+
+    // Get user from auth
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+    console.log("🔍 Debug: Auth user data:", { authUser, authError });
+
+    // Get profile from database
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    console.log("🔍 Debug: Profile data:", { profile, profileError });
+
+    // Get vendor profile if exists
+    const { data: vendorProfile, error: vendorError } = await supabase
+      .from("vendor_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    console.log("🔍 Debug: Vendor profile data:", { vendorProfile, vendorError });
+
+    return {
+      userId,
+      authUser: authUser?.user,
+      profile,
+      vendorProfile,
+      errors: {
+        auth: authError,
+        profile: profileError,
+        vendor: vendorError
+      }
+    };
+  } catch (error) {
+    console.error("💥 Debug: Error checking user profile:", error);
+    return { error: error instanceof Error ? error.message : "Unknown error" };
+  }
+}
+
 export async function testVendorCreation() {
   const supabase = createClientComponentClient()
   

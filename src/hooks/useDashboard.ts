@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { createClientComponentClient } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVendorDashboard } from "./useVendorDashboard";
 import { useClientDashboard } from "./useClientDashboard";
@@ -58,56 +57,28 @@ export interface UseDashboardReturn {
 }
 
 export function useDashboard(): UseDashboardReturn {
-  const { user } = useAuth();
-  const [userType, setUserType] = useState<"planner" | "vendor" | "viewer" | null>(null);
+  const { user, userType: centralizedUserType, profile, loading: authLoading } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const supabase = createClientComponentClient();
 
   // Always call both hooks to maintain hook order consistency
   const vendorDashboard = useVendorDashboard();
   const clientDashboard = useClientDashboard();
 
-  // Get user type from profile
-  const getUserType = useCallback(async () => {
-    if (!user?.id) return null;
-
-    try {
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_type")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError) {
-        console.error("Error getting user type:", profileError);
-        return null;
-      }
-
-      return profile?.user_type as "planner" | "vendor" | "viewer" | null;
-    } catch (err) {
-      console.error("Error getting user type:", err);
-      return null;
-    }
-  }, [user?.id]); // Removed supabase from dependencies to prevent infinite loop
-
-  // Initialize user type
-  useEffect(() => {
-    const initUserType = async () => {
-      if (user?.id) {
-        const type = await getUserType();
-        setUserType(type);
-      }
-    };
-
-    initUserType();
-  }, [user?.id, getUserType]);
+  // Use centralized user type
+  const userType = centralizedUserType;
 
   // Combine data based on user type
   useEffect(() => {
-    if (!userType) return;
+    console.log("🔄 useDashboard - Combining data for userType:", userType, "user:", user?.id, "authLoading:", authLoading);
+
+    // Wait for auth to finish loading and user type to be available
+    if (authLoading || !userType) {
+      console.log("🔄 useDashboard - Waiting for auth or userType, returning early");
+      setLoading(true);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -118,6 +89,14 @@ export function useDashboard(): UseDashboardReturn {
       };
 
       if (userType === "vendor") {
+        console.log("🏪 useDashboard - Setting up vendor dashboard data:", {
+          vendorStats: vendorDashboard.vendorStats,
+          hasRecentInquiries: !!vendorDashboard.recentInquiries,
+          hasUpcomingEvents: !!vendorDashboard.upcomingEvents,
+          profileCompletion: vendorDashboard.profileCompletion,
+          monthlyGrowth: vendorDashboard.monthlyGrowth
+        });
+
         // Use vendor dashboard data
         dashboardData = {
           ...dashboardData,
@@ -126,9 +105,9 @@ export function useDashboard(): UseDashboardReturn {
           upcomingEvents: vendorDashboard.upcomingEvents,
           profileCompletion: vendorDashboard.profileCompletion,
           monthlyGrowth: vendorDashboard.monthlyGrowth,
-          businessName: vendorDashboard.vendorStats?.businessName || "Your Business",
+          businessName: vendorDashboard.vendorStats?.businessName || profile?.business_name || "Your Business",
         };
-        
+
         setError(vendorDashboard.error);
       } else if (userType === "planner") {
         // Use client dashboard data for planners
@@ -137,7 +116,7 @@ export function useDashboard(): UseDashboardReturn {
           eventData: clientDashboard.data || undefined,
           eventName: clientDashboard.data?.event?.event_type || "Your Event",
         };
-        
+
         setError(clientDashboard.error);
       } else if (userType === "viewer") {
         // Viewer dashboard - minimal data
@@ -157,7 +136,9 @@ export function useDashboard(): UseDashboardReturn {
       setLoading(false);
     }
   }, [
-    userType, 
+    userType,
+    authLoading,
+    profile,
     vendorDashboard.vendorStats,
     vendorDashboard.recentInquiries,
     vendorDashboard.upcomingEvents,
@@ -179,7 +160,7 @@ export function useDashboard(): UseDashboardReturn {
 
   return {
     data,
-    loading: loading || (userType === "vendor" ? vendorDashboard.loading : false) || (userType === "planner" ? clientDashboard.loading : false),
+    loading: authLoading || loading || (userType === "vendor" ? vendorDashboard.loading : false) || (userType === "planner" ? clientDashboard.loading : false),
     error,
     refetch,
     userType,

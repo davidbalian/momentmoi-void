@@ -40,7 +40,13 @@ import {
 } from "lucide-react";
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    profile,
+    userType,
+    refreshProfile,
+  } = useAuth();
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const {
@@ -48,7 +54,6 @@ export default function DashboardPage() {
     loading: dataLoading,
     error,
     refetch,
-    userType,
   } = useDashboard();
 
   // Handle refresh with loading state
@@ -56,6 +61,7 @@ export default function DashboardPage() {
     setIsRefreshing(true);
     try {
       await refetch();
+      await refreshProfile(); // Also refresh profile data
     } finally {
       setIsRefreshing(false);
     }
@@ -67,102 +73,21 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
-  // Check if user needs onboarding
+  // Handle onboarding redirection using centralized profile data
   useEffect(() => {
-    const checkOnboarding = async () => {
-      if (user && !authLoading) {
-        console.log("Checking onboarding for user:", user.id);
-        const { createClientComponentClient } = await import("@/lib/supabase");
-        const supabase = createClientComponentClient();
+    if (!authLoading && user && profile) {
+      console.log("Checking onboarding status for user:", user.id);
+      console.log("Profile data:", profile);
 
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("onboarding_completed, user_type")
-          .eq("id", user.id)
-          .single();
-
-        console.log("Profile data:", profile);
-        console.log("Profile error:", error);
-
-        // If profile doesn't exist, create it
-        if (error && error.code === "PGRST116") {
-          console.log("Profile doesn't exist, creating it...");
-          const userType = user.user_metadata?.user_type || "viewer";
-          const fullName = user.user_metadata?.full_name || "";
-
-          try {
-            const { data: createData, error: createError } = await supabase
-              .from("profiles")
-              .insert({
-                id: user.id,
-                email: user.email,
-                full_name: fullName,
-                user_type: userType,
-                onboarding_completed: false,
-              })
-              .select();
-
-            if (createError) {
-              console.error("Error creating profile:", createError);
-
-              // Check if profile was actually created despite the error
-              const { data: checkProfile } = await supabase
-                .from("profiles")
-                .select("onboarding_completed, user_type")
-                .eq("id", user.id)
-                .single();
-
-              if (checkProfile) {
-                console.log("Profile exists despite error:", checkProfile);
-                if (!checkProfile.onboarding_completed) {
-                  router.push("/onboarding");
-                  return;
-                }
-              } else {
-                // Profile creation failed and doesn't exist, show error
-                console.error("Profile creation failed completely");
-                alert(
-                  "Failed to create user profile. Please try logging in again."
-                );
-                return;
-              }
-            } else {
-              console.log("Profile created successfully:", createData);
-              console.log("Profile created, redirecting to onboarding");
-              router.push("/onboarding");
-              return;
-            }
-          } catch (createException) {
-            console.error(
-              "Exception during profile creation:",
-              createException
-            );
-            alert(
-              "Failed to create user profile. Please try logging in again."
-            );
-            return;
-          }
-        }
-
-        // If onboarding not completed, redirect to onboarding
-        if (profile && !profile.onboarding_completed) {
-          console.log(
-            "Profile found but onboarding not completed, redirecting to onboarding"
-          );
-          console.log("Profile data:", profile);
-          router.push("/onboarding");
-          return;
-        } else if (profile && profile.onboarding_completed) {
-          console.log("Profile found and onboarding completed");
-          console.log("Profile data:", profile);
-        } else {
-          console.log("No profile found or profile check failed");
-        }
+      if (!profile.onboarding_completed) {
+        console.log("Onboarding not completed, redirecting to onboarding");
+        router.push("/onboarding");
+        return;
       }
-    };
 
-    checkOnboarding();
-  }, [user, authLoading]); // Removed router from dependencies to prevent infinite loop
+      console.log("Onboarding completed, staying on dashboard");
+    }
+  }, [user, authLoading, profile, router]);
 
   if (authLoading || dataLoading) {
     return (
@@ -182,11 +107,13 @@ export default function DashboardPage() {
   // Get display name based on user type
   const getDisplayName = () => {
     if (userType === "vendor") {
-      return dashboardData?.businessName || "Your Business";
+      return (
+        dashboardData?.businessName || profile?.business_name || "Your Business"
+      );
     } else if (userType === "planner") {
-      return user.user_metadata?.full_name || "Planner";
+      return profile?.full_name || user.user_metadata?.full_name || "Planner";
     } else {
-      return user.user_metadata?.full_name || "Welcome";
+      return profile?.full_name || user.user_metadata?.full_name || "Welcome";
     }
   };
 
