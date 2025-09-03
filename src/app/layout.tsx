@@ -3,6 +3,7 @@ import { Lato } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster } from "sonner";
 
 // Local font - Ivy Presto Display
 const ivyPrestoDisplay = localFont({
@@ -36,6 +37,7 @@ export default function RootLayout({
         className={`${ivyPrestoDisplay.variable} ${lato.variable} antialiased`}
       >
         <AuthProvider>{children}</AuthProvider>
+        <Toaster />
       </body>
     </html>
   );

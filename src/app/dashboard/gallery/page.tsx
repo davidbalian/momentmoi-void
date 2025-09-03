@@ -40,8 +40,10 @@ export default function GalleryPage() {
         if (error) {
           console.error("Error getting vendor profile:", error);
           setVendorId(null);
-        } else {
+        } else if (vendorProfile) {
           setVendorId(vendorProfile.id);
+        } else {
+          setVendorId(null);
         }
       } catch (err) {
         console.error("Error getting vendor profile:", err);
@@ -177,8 +179,8 @@ export default function GalleryPage() {
             <ImageUpload
               vendorId={vendorId}
               existingImages={images}
-              onImagesUpdate={(newImages) => {
-                // This will trigger a refetch in the useVendorGallery hook
+              onImagesUpdate={(updatedImages) => {
+                // Refetch to get the latest images from the database
                 refetch();
               }}
               onClose={() => setShowUpload(false)}

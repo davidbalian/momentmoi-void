@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/Input";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useImageUpload } from "@/hooks/useImageUpload";
+import { toast } from "sonner";
 
 interface GalleryImage {
   id: string;
@@ -30,6 +32,9 @@ interface UploadedImage {
   caption: string;
   is_featured: boolean;
   display_order: number;
+  uploadProgress: number;
+  uploadStatus: "pending" | "uploading" | "completed" | "error";
+  error?: string;
 }
 
 export default function ImageUpload({
@@ -41,9 +46,11 @@ export default function ImageUpload({
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [editingImage, setEditingImage] = useState<GalleryImage | null>(null);
   const [editCaption, setEditCaption] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { uploadImages, isUploading, error, clearError } = useImageUpload({
+    vendorId,
+  });
 
   // Combine existing and new images for management
   const allImages = [
@@ -76,6 +83,8 @@ export default function ImageUpload({
                 caption: "",
                 is_featured: false,
                 display_order: prev.length,
+                uploadProgress: 0,
+                uploadStatus: "pending",
               },
             ]);
           };
@@ -148,66 +157,65 @@ export default function ImageUpload({
       return;
     }
 
-    setSaving(true);
+    // Clear any previous errors
+    clearError();
+
     try {
-      // Here you would upload images to your storage service
-      // For now, we'll simulate the process
+      // Extract files and metadata for upload
+      const files = uploadedImages.map((img) => img.file);
+      const captions = uploadedImages.map((img) => img.caption);
+      const isFeatured = uploadedImages.map((img) => img.is_featured);
 
-      // Simulate API calls for each uploaded image
-      const newGalleryImages: GalleryImage[] = [];
+      // Upload images using the hook
+      const uploadedGalleryImages = await uploadImages(files, {
+        captions,
+        isFeatured,
+        onProgress: (progress) => {
+          // Update local state with upload progress
+          setUploadedImages((prev) =>
+            prev.map((img, index) => {
+              const progressInfo = progress[index];
+              if (progressInfo) {
+                return {
+                  ...img,
+                  uploadProgress: progressInfo.progress,
+                  uploadStatus: progressInfo.status,
+                  error: progressInfo.error,
+                };
+              }
+              return img;
+            })
+          );
+        },
+      });
 
-      for (const uploadedImage of uploadedImages) {
-        // Simulate image upload
-        const imageUrl = await simulateImageUpload(uploadedImage.file);
-
-        const galleryImage: GalleryImage = {
-          id: `temp-${Date.now()}-${Math.random()}`,
-          image_url: imageUrl,
-          caption: uploadedImage.caption,
-          display_order: uploadedImage.display_order,
-          is_featured: uploadedImage.is_featured,
-          created_at: new Date().toISOString(),
-        };
-
-        newGalleryImages.push(galleryImage);
+      if (uploadedGalleryImages.length > 0) {
+        toast.success(
+          `Successfully uploaded ${uploadedGalleryImages.length} image(s)`
+        );
+        // Update the parent component with new images
+        onImagesUpdate([...existingImages, ...uploadedGalleryImages]);
+        // Reset state
+        setUploadedImages([]);
+        onClose();
       }
-
-      // Update the parent component with new images
-      onImagesUpdate([...existingImages, ...newGalleryImages]);
-
-      // Reset state
-      setUploadedImages([]);
-      onClose();
     } catch (error) {
-      console.error("Error saving images:", error);
-      // Handle error - show toast or error message
-    } finally {
-      setSaving(false);
+      console.error("Error uploading images:", error);
+      toast.error("Failed to upload images. Please try again.");
     }
-  };
-
-  // Simulate image upload - replace with actual upload service
-  const simulateImageUpload = async (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // In a real implementation, this would upload to your storage service
-        // and return the actual URL
-        resolve(URL.createObjectURL(file));
-      }, 1000);
-    });
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-background rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        <Card className="border-0 shadow-none">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <div className="bg-background rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
+        <Card className="border-0 shadow-none flex-1 flex flex-col min-h-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 flex-shrink-0">
             <CardTitle>Manage Gallery Images</CardTitle>
             <Button variant="ghost" size="sm" onClick={onClose}>
               <Icon name="X" size="lg" />
             </Button>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 flex-1 overflow-y-auto">
             {/* Upload Section */}
             <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
               <input
@@ -291,15 +299,70 @@ export default function ImageUpload({
                           )}
                         </div>
 
-                        {/* Featured Badge */}
-                        {image.is_featured && (
-                          <div className="absolute top-2 left-2">
+                        {/* Status Badges */}
+                        <div className="absolute top-2 left-2 flex flex-col gap-1">
+                          {/* Upload Status */}
+                          {image.id.startsWith("new-") && (
+                            <>
+                              {uploadedImages[parseInt(image.id.split("-")[1])]
+                                ?.uploadStatus === "uploading" && (
+                                <Badge
+                                  variant="secondary"
+                                  size="sm"
+                                  className="bg-blue-100 text-blue-800"
+                                >
+                                  <Icon
+                                    name="Loader"
+                                    size="xs"
+                                    className="mr-1 animate-spin"
+                                  />
+                                  {uploadedImages[
+                                    parseInt(image.id.split("-")[1])
+                                  ]?.uploadProgress || 0}
+                                  %
+                                </Badge>
+                              )}
+                              {uploadedImages[parseInt(image.id.split("-")[1])]
+                                ?.uploadStatus === "error" && (
+                                <Badge
+                                  variant="secondary"
+                                  size="sm"
+                                  className="bg-red-100 text-red-800"
+                                >
+                                  <Icon
+                                    name="AlertCircle"
+                                    size="xs"
+                                    className="mr-1"
+                                  />
+                                  Failed
+                                </Badge>
+                              )}
+                              {uploadedImages[parseInt(image.id.split("-")[1])]
+                                ?.uploadStatus === "completed" && (
+                                <Badge
+                                  variant="secondary"
+                                  size="sm"
+                                  className="bg-green-100 text-green-800"
+                                >
+                                  <Icon
+                                    name="Check"
+                                    size="xs"
+                                    className="mr-1"
+                                  />
+                                  Done
+                                </Badge>
+                              )}
+                            </>
+                          )}
+
+                          {/* Featured Badge */}
+                          {image.is_featured && (
                             <Badge variant="secondary" size="sm">
                               <Icon name="Star" size="xs" className="mr-1" />
                               Featured
                             </Badge>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
 
                       {/* Caption Section */}
@@ -335,17 +398,37 @@ export default function ImageUpload({
               </div>
             )}
 
+            {/* Error Display */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center">
+                  <Icon
+                    name="AlertCircle"
+                    size="sm"
+                    className="text-red-500 mr-2"
+                  />
+                  <p className="text-red-700 text-sm">{error}</p>
+                </div>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex justify-end space-x-4 pt-4 border-t">
-              <Button variant="outline" onClick={onClose}>
+              <Button
+                variant="outline"
+                onClick={onClose}
+                disabled={isUploading}
+              >
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveAll}
-                loading={saving}
-                disabled={uploadedImages.length === 0 && !saving}
+                loading={isUploading}
+                disabled={uploadedImages.length === 0 || isUploading}
               >
-                {saving ? "Saving..." : `Save ${uploadedImages.length} Images`}
+                {isUploading
+                  ? "Uploading..."
+                  : `Save ${uploadedImages.length} Images`}
               </Button>
             </div>
           </CardContent>

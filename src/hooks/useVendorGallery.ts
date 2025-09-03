@@ -30,6 +30,12 @@ export function useVendorGallery({ vendorId }: UseVendorGalleryProps): UseVendor
       setLoading(true);
       setError(null);
 
+      if (!vendorId || vendorId === "") {
+        console.log("⚠️ useVendorGallery: No vendorId provided, skipping fetch");
+        setImages([]);
+        return;
+      }
+
       const { data, error: fetchError } = await supabase
         .from("vendor_gallery")
         .select("*")
@@ -38,12 +44,13 @@ export function useVendorGallery({ vendorId }: UseVendorGalleryProps): UseVendor
         .order("created_at", { ascending: false });
 
       if (fetchError) {
+        console.error("❌ useVendorGallery: Fetch error:", fetchError);
         throw fetchError;
       }
 
       setImages(data || []);
     } catch (err) {
-      console.error("Error fetching gallery images:", err);
+      console.error("💥 useVendorGallery: Error fetching gallery images:", err);
       setError(err instanceof Error ? err.message : "Failed to load gallery images");
     } finally {
       setLoading(false);
@@ -146,8 +153,13 @@ export function useVendorGallery({ vendorId }: UseVendorGalleryProps): UseVendor
   }, [supabase]);
 
   useEffect(() => {
-    fetchImages();
-  }, [fetchImages]);
+    // Only fetch if we have a valid vendorId
+    if (vendorId && vendorId !== "") {
+      fetchImages();
+    } else {
+      setLoading(false);
+    }
+  }, [fetchImages, vendorId]);
 
   return {
     images,
