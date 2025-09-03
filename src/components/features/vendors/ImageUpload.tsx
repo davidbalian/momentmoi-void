@@ -240,7 +240,7 @@ export default function ImageUpload({
               <Button
                 onClick={() => fileInputRef.current?.click()}
                 variant="outline"
-                disabled={uploading}
+                disabled={isUploading}
               >
                 <Icon name="Plus" size="sm" className="mr-2" />
                 Choose Files
