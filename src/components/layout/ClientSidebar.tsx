@@ -27,19 +27,13 @@ interface ClientSidebarProps {
 const plannerSidebarItems: ClientSidebarItem[] = [
   {
     label: "Dashboard",
-    href: "/dashboard/client",
+    href: "/dashboard",
     icon: "LayoutDashboard",
   },
   {
-    label: "Event Details",
+    label: "Event",
     href: "/dashboard/event",
-    icon: "Calendar",
-  },
-  {
-    label: "Vendors",
-    href: "/dashboard/vendors",
-    icon: "Store",
-    badge: "New",
+    icon: "CalendarDays",
   },
   {
     label: "Guests",
@@ -49,7 +43,7 @@ const plannerSidebarItems: ClientSidebarItem[] = [
   {
     label: "Checklist",
     href: "/dashboard/checklist",
-    icon: "CheckSquare",
+    icon: "CheckCircle",
   },
   {
     label: "Budget",
@@ -57,33 +51,75 @@ const plannerSidebarItems: ClientSidebarItem[] = [
     icon: "DollarSign",
   },
   {
-    label: "Settings",
+    label: "Calendar",
+    href: "/dashboard/calendar",
+    icon: "Calendar",
+  },
+  {
+    label: "Partner",
+    href: "/dashboard/partner",
+    icon: "Heart",
+  },
+  {
+    label: "Vendors",
+    href: "/dashboard/vendors",
+    icon: "Building2",
+  },
+  {
+    label: "Profile",
     href: "/dashboard/profile",
-    icon: "Settings",
+    icon: "User",
+  },
+];
+
+const vendorSidebarItems: ClientSidebarItem[] = [
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: "LayoutDashboard",
+  },
+  {
+    label: "Services",
+    href: "/dashboard/services",
+    icon: "Package",
+  },
+  {
+    label: "Inquiries",
+    href: "/dashboard/inquiries",
+    icon: "MessageSquare",
+  },
+  {
+    label: "Calendar",
+    href: "/dashboard/calendar",
+    icon: "Calendar",
+  },
+  {
+    label: "Profile",
+    href: "/dashboard/profile",
+    icon: "User",
   },
 ];
 
 const viewerSidebarItems: ClientSidebarItem[] = [
   {
     label: "Dashboard",
-    href: "/dashboard/client",
+    href: "/dashboard",
     icon: "LayoutDashboard",
   },
   {
     label: "Vendors",
     href: "/dashboard/vendors",
-    icon: "Store",
-    badge: "New",
+    icon: "Building2",
   },
   {
-    label: "Saved Vendors",
+    label: "Favorites",
     href: "/dashboard/vendors/favorites",
     icon: "Heart",
   },
   {
-    label: "Settings",
+    label: "Profile",
     href: "/dashboard/profile",
-    icon: "Settings",
+    icon: "User",
   },
 ];
 
@@ -93,7 +129,9 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
   const { user, signOut, loading: authLoading } = useAuth();
   const { data: dashboardData } = useClientDashboard();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [userType, setUserType] = useState<"planner" | "viewer" | null>(null);
+  const [userType, setUserType] = useState<
+    "planner" | "vendor" | "viewer" | null
+  >(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const supabase = createClientComponentClient();
 
@@ -110,7 +148,14 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
           .single();
 
         if (!error && profile) {
-          setUserType(profile.user_type as "planner" | "viewer");
+          setUserType(profile.user_type as "planner" | "vendor" | "viewer");
+        } else {
+          // Fallback to user metadata
+          const fallbackType = user.user_metadata?.user_type as
+            | "planner"
+            | "vendor"
+            | "viewer";
+          setUserType(fallbackType || "viewer");
         }
       } catch (err) {
         console.error("Error getting user type:", err);
@@ -121,8 +166,20 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
   }, [user?.id, supabase]);
 
   // Determine which sidebar items to show
-  const sidebarItems =
-    userType === "planner" ? plannerSidebarItems : viewerSidebarItems;
+  const getSidebarItems = (): ClientSidebarItem[] => {
+    switch (userType) {
+      case "planner":
+        return plannerSidebarItems;
+      case "vendor":
+        return vendorSidebarItems;
+      case "viewer":
+        return viewerSidebarItems;
+      default:
+        return viewerSidebarItems; // fallback
+    }
+  };
+
+  const sidebarItems = getSidebarItems();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -181,6 +238,18 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
                 : undefined
             }
           />
+        </div>
+      )}
+
+      {/* Vendor Business Stats Widget - Only show for vendors */}
+      {userType === "vendor" && dashboardData?.businessName && (
+        <div className="sticky top-16 z-10 px-4 py-4 border-b border-border bg-white">
+          <div className="text-center">
+            <div className="text-sm font-medium text-gray-900">
+              {dashboardData.businessName}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">Business Dashboard</div>
+          </div>
         </div>
       )}
 

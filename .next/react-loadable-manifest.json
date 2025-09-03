@@ -15,6 +15,14 @@
     "id": "../node_modules/@supabase/storage-js/dist/module/lib/helpers.js -> @supabase/node-fetch",
     "files": []
   },
+  "app/dashboard/page.tsx -> @/lib/supabase": {
+    "id": "app/dashboard/page.tsx -> @/lib/supabase",
+    "files": []
+  },
+  "app/dashboard/services/page.tsx -> @/lib/supabase": {
+    "id": "app/dashboard/services/page.tsx -> @/lib/supabase",
+    "files": []
+  },
   "hooks/useVendorProfile.ts -> @/lib/slug-utils": {
     "id": "hooks/useVendorProfile.ts -> @/lib/slug-utils",
     "files": [

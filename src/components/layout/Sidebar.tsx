@@ -9,6 +9,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Card } from "@/components/ui/Card";
 import { SkeletonUserProfile } from "@/components/ui/Skeleton";
 import { useAuth } from "@/contexts/AuthContext";
+import { createClientComponentClient } from "@/lib/supabase";
 
 interface SidebarItem {
   label: string;
@@ -20,16 +21,62 @@ interface SidebarProps {
   className?: string;
 }
 
-const sidebarItems: SidebarItem[] = [
+type UserType = "planner" | "vendor" | "viewer";
+
+// Define navigation for each user type
+const plannerSidebarItems: SidebarItem[] = [
   {
     label: "Dashboard",
     href: "/dashboard",
     icon: "LayoutDashboard",
   },
   {
+    label: "Event",
+    href: "/dashboard/event",
+    icon: "CalendarDays",
+  },
+  {
+    label: "Guests",
+    href: "/dashboard/guests",
+    icon: "Users",
+  },
+  {
+    label: "Checklist",
+    href: "/dashboard/checklist",
+    icon: "CheckCircle",
+  },
+  {
+    label: "Budget",
+    href: "/dashboard/budget",
+    icon: "DollarSign",
+  },
+  {
+    label: "Calendar",
+    href: "/dashboard/calendar",
+    icon: "Calendar",
+  },
+  {
+    label: "Partner",
+    href: "/dashboard/partner",
+    icon: "Heart",
+  },
+  {
+    label: "Vendors",
+    href: "/dashboard/vendors",
+    icon: "Building2",
+  },
+  {
     label: "Profile",
     href: "/dashboard/profile",
-    icon: "Building2",
+    icon: "User",
+  },
+];
+
+const vendorSidebarItems: SidebarItem[] = [
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: "LayoutDashboard",
   },
   {
     label: "Services",
@@ -46,6 +93,34 @@ const sidebarItems: SidebarItem[] = [
     href: "/dashboard/calendar",
     icon: "Calendar",
   },
+  {
+    label: "Profile",
+    href: "/dashboard/profile",
+    icon: "User",
+  },
+];
+
+const viewerSidebarItems: SidebarItem[] = [
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: "LayoutDashboard",
+  },
+  {
+    label: "Vendors",
+    href: "/dashboard/vendors",
+    icon: "Building2",
+  },
+  {
+    label: "Favorites",
+    href: "/dashboard/vendors/favorites",
+    icon: "Heart",
+  },
+  {
+    label: "Profile",
+    href: "/dashboard/profile",
+    icon: "User",
+  },
 ];
 
 export function Sidebar({ className }: SidebarProps) {
@@ -53,7 +128,46 @@ export function Sidebar({ className }: SidebarProps) {
   const router = useRouter();
   const { user, signOut, loading: authLoading } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [userType, setUserType] = useState<UserType | null>(null);
+  const [userTypeLoading, setUserTypeLoading] = useState(true);
   const profileRef = useRef<HTMLDivElement>(null);
+  const supabase = createClientComponentClient();
+
+  // Get user type from profile
+  useEffect(() => {
+    const getUserType = async () => {
+      if (!user?.id) {
+        setUserTypeLoading(false);
+        return;
+      }
+
+      try {
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", user.id)
+          .single();
+
+        if (error) {
+          console.error("Error getting user type:", error);
+          // Fallback to user metadata
+          const fallbackType = user.user_metadata?.user_type as UserType;
+          setUserType(fallbackType || "viewer");
+        } else {
+          setUserType(profile?.user_type as UserType);
+        }
+      } catch (err) {
+        console.error("Error getting user type:", err);
+        // Fallback to user metadata
+        const fallbackType = user.user_metadata?.user_type as UserType;
+        setUserType(fallbackType || "viewer");
+      } finally {
+        setUserTypeLoading(false);
+      }
+    };
+
+    getUserType();
+  }, [user?.id, supabase]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -71,6 +185,24 @@ export function Sidebar({ className }: SidebarProps) {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // Get sidebar items based on user type
+  const getSidebarItems = (): SidebarItem[] => {
+    if (!userType) return [];
+
+    switch (userType) {
+      case "planner":
+        return plannerSidebarItems;
+      case "vendor":
+        return vendorSidebarItems;
+      case "viewer":
+        return viewerSidebarItems;
+      default:
+        return viewerSidebarItems; // fallback
+    }
+  };
+
+  const sidebarItems = getSidebarItems();
 
   const handleSignOut = async () => {
     try {
@@ -104,28 +236,45 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation Links */}
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto relative z-10">
-        {sidebarItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200",
-                isActive
-                  ? "bg-primary-50 text-primary-600 border border-primary-500"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              )}
-            >
-              <Icon
-                name={item.icon}
-                size="sm"
-                className={cn(isActive ? "text-primary-600" : "text-gray-400")}
-              />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {userTypeLoading ? (
+          // Loading skeleton for navigation items
+          <>
+            {[...Array(5)].map((_, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg"
+              >
+                <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+                <div className="flex-1 h-4 bg-gray-200 rounded animate-pulse" />
+              </div>
+            ))}
+          </>
+        ) : (
+          sidebarItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200",
+                  isActive
+                    ? "bg-primary-50 text-primary-600 border border-primary-500"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                )}
+              >
+                <Icon
+                  name={item.icon}
+                  size="sm"
+                  className={cn(
+                    isActive ? "text-primary-600" : "text-gray-400"
+                  )}
+                />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })
+        )}
       </nav>
 
       {/* Profile Section */}
