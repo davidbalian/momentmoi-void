@@ -162,18 +162,18 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-white border-r border-border shadow-sm",
+        "flex flex-col h-screen bg-white border-r border-border shadow-sm",
         className
       )}
     >
-      {/* Logo Section */}
-      <div className="flex items-center justify-center h-16 px-4 border-b border-border">
+      {/* Fixed Logo Section */}
+      <div className="sticky top-0 z-10 flex items-center justify-center h-16 px-4 border-b border-border bg-white">
         <h3 className="text-xl font-semibold text-primary-500">MomentMoi</h3>
       </div>
 
-      {/* Event Countdown Widget - Only show for planners */}
+      {/* Fixed Event Countdown Widget - Only show for planners */}
       {userType === "planner" && (
-        <div className="px-4 py-4 border-b border-border">
+        <div className="sticky top-16 z-10 px-4 py-4 border-b border-border bg-white">
           <EventCountdown
             eventDate={
               dashboardData?.event?.event_date
@@ -185,7 +185,7 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
       )}
 
       {/* Navigation Links */}
-      <nav className="flex-1 px-4 py-6 space-y-2">
+      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto relative z-10">
         {sidebarItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -234,7 +234,7 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
       )}
 
       {/* Profile Section */}
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border relative z-20">
         <div className="relative" ref={profileRef}>
           {authLoading ? (
             <SkeletonUserProfile />
@@ -253,7 +253,6 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
                   <div className="text-sm font-medium text-gray-900">
                     {user?.user_metadata?.full_name || "User"}
                   </div>
-                  <div className="text-xs text-gray-500">{user?.email}</div>
                 </div>
                 <Icon
                   name={isProfileOpen ? "ChevronUp" : "ChevronDown"}
@@ -264,7 +263,7 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
 
               {/* Profile Dropdown */}
               {isProfileOpen && (
-                <div className="absolute bottom-full left-0 right-0 mb-2 w-full bg-white border border-border rounded-md shadow-lg z-50">
+                <div className="absolute top-0 left-0 right-0 -mt-2 w-full bg-white border border-border rounded-md shadow-lg z-[100] transform -translate-y-full">
                   <div className="py-1">
                     <Link
                       href="/dashboard/profile"

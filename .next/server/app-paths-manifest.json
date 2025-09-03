@@ -1,3 +1,4 @@
 {
+  "/dashboard/partner/page": "app/dashboard/partner/page.js",
   "/dashboard/profile/page": "app/dashboard/profile/page.js"
 }
