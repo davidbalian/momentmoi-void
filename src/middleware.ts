@@ -55,7 +55,29 @@ export async function middleware(request: NextRequest) {
 
   // If user is authenticated and trying to access auth routes
   if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    // Get user profile to determine appropriate dashboard
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('user_type, onboarding_completed')
+        .eq('id', user.id)
+        .single()
+
+      // If profile exists and user is onboarded, redirect to appropriate dashboard
+      if (profile && profile.onboarding_completed) {
+        const dashboardUrl = profile.user_type === 'vendor'
+          ? '/dashboard'  // All user types use the same dashboard route now
+          : '/dashboard' // All user types use the same dashboard route now
+        return NextResponse.redirect(new URL(dashboardUrl, request.url))
+      } else {
+        // User not onboarded, redirect to onboarding
+        return NextResponse.redirect(new URL('/onboarding', request.url))
+      }
+    } catch (error) {
+      console.error('Error fetching user profile in middleware:', error)
+      // Fallback to dashboard if profile fetch fails
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
   }
 
   return supabaseResponse

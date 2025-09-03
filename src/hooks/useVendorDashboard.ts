@@ -107,6 +107,7 @@ export function useVendorDashboard() {
   
   // Track vendor ID for real-time subscriptions
   const [vendorId, setVendorId] = useState<string | null>(null);
+  const [vendorIdLookupCompleted, setVendorIdLookupCompleted] = useState(false);
   const subscriptionsRef = useRef<RealtimeChannel[]>([]);
 
   const supabase = createClientComponentClient();
@@ -897,6 +898,8 @@ export function useVendorDashboard() {
         console.error("Error during vendor initialization:", error);
         setError("Failed to initialize vendor dashboard. Please try refreshing the page.");
         setLoading(false);
+      } finally {
+        setVendorIdLookupCompleted(true);
       }
     };
 
@@ -917,23 +920,25 @@ export function useVendorDashboard() {
 
   // Load data when vendor ID is available
   useEffect(() => {
-    // Only proceed if we have a definitive vendorId (not undefined)
-    if (vendorId !== undefined) {
+    // Only proceed if vendor ID lookup is completed and we have a definitive result
+    if (vendorIdLookupCompleted) {
       if (vendorId) {
         console.log("Loading dashboard data for vendor:", vendorId);
         // Clear any previous error when we successfully find vendor profile
         setError(null);
         setDashboardError(null);
         loadDashboardData();
-      } else if (vendorId === null && user?.id) {
-        // Vendor ID is null but user exists - this means user is not a vendor
-        console.log("User is not a vendor, setting error state");
-        setError("Vendor profile not found. This dashboard is only available for vendor accounts. If you believe this is an error, please complete vendor onboarding or contact support.");
+      } else if (vendorId === null) {
+        // Vendor ID lookup completed but no vendor profile found
+        console.log("Vendor ID lookup completed - no vendor profile found");
+        if (user?.id) {
+          setError("Vendor profile not found. This dashboard is only available for vendor accounts. If you believe this is an error, please complete vendor onboarding or contact support.");
+        }
         setLoading(false);
       }
     }
-    // Don't do anything if vendorId is still undefined (still loading)
-  }, [vendorId, user?.id]); // Removed loadDashboardData from dependencies to prevent infinite loop
+    // Don't do anything if vendor ID lookup is still in progress
+  }, [vendorId, vendorIdLookupCompleted, user?.id]); // Removed loadDashboardData from dependencies to prevent infinite loop
 
   return {
     vendorStats,
