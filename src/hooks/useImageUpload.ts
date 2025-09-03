@@ -66,8 +66,8 @@ export function useImageUpload({
 
       // Upload to Supabase Storage
       const { data, error: uploadError } = await supabase.storage
-        .from("vendor-gallery") // You'll need to create this bucket
-        .upload(`vendors/${vendorId}/${uniqueName}`, file, {
+        .from("vendor-gallery") // Create this bucket in Supabase Dashboard as public
+        .upload(`${vendorId}/${uniqueName}`, file, {
           cacheControl: "3600",
           upsert: false,
         });

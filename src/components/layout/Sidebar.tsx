@@ -84,6 +84,11 @@ const vendorSidebarItems: SidebarItem[] = [
     icon: "Package",
   },
   {
+    label: "Gallery",
+    href: "/dashboard/gallery",
+    icon: "Image",
+  },
+  {
     label: "Inquiries",
     href: "/dashboard/inquiries",
     icon: "MessageSquare",

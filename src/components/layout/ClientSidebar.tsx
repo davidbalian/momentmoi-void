@@ -242,13 +242,13 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
       )}
 
       {/* Vendor Business Stats Widget - Only show for vendors */}
-      {userType === "vendor" && dashboardData?.businessName && (
+      {userType === "vendor" && (
         <div className="sticky top-16 z-10 px-4 py-4 border-b border-border bg-white">
           <div className="text-center">
             <div className="text-sm font-medium text-gray-900">
-              {dashboardData.businessName}
+              Vendor Dashboard
             </div>
-            <div className="text-xs text-gray-500 mt-1">Business Dashboard</div>
+            <div className="text-xs text-gray-500 mt-1">Manage Your Business</div>
           </div>
         </div>
       )}

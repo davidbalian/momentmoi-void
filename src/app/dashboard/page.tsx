@@ -457,6 +457,14 @@ export default function DashboardPage() {
                       <Button
                         variant="outline"
                         className="w-full justify-start gap-2"
+                        onClick={() => router.push("/dashboard/gallery")}
+                      >
+                        <Eye className="w-4 h-4" />
+                        Manage Gallery
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start gap-2"
                         onClick={() => router.push("/dashboard/calendar")}
                       >
                         <Calendar className="w-4 h-4" />
