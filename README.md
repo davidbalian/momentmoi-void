@@ -406,6 +406,46 @@ budget_items (id, event_id, category, name, estimated_cost, actual_cost)
 
 ## 🚀 Deployment Rules
 
+### Vercel Deployment Setup
+
+#### 1. Environment Variables
+
+Before deploying to Vercel, you need to configure the following environment variables in your Vercel project dashboard:
+
+**Required Environment Variables:**
+
+- `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anonymous key
+- `DATABASE_URL` - Your database connection string
+
+**Setting up Environment Variables in Vercel:**
+
+1. Go to your Vercel project dashboard
+2. Navigate to Settings → Environment Variables
+3. Add each environment variable with the appropriate values
+4. Make sure to set them for Production, Preview, and Development environments
+
+**Getting Supabase Values:**
+
+- Go to your Supabase project dashboard
+- Navigate to Settings → API
+- Copy the Project URL and anon public key
+
+#### 2. Database Setup
+
+Ensure your Supabase database is properly configured:
+
+- Run Prisma migrations: `npx prisma migrate deploy`
+- Seed the database if needed: `npm run db:seed`
+
+#### 3. Build Configuration
+
+The project includes automatic Prisma client generation during build:
+
+- `vercel.json` configures the build process
+- `postinstall` script generates Prisma client after dependency installation
+- Build command includes `prisma generate && next build`
+
 ### Production Deployment
 
 - Vercel for hosting
