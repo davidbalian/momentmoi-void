@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVendorDashboard } from "./useVendorDashboard";
 import { useClientDashboard } from "./useClientDashboard";
@@ -56,50 +56,59 @@ export interface UseDashboardReturn {
   userType: "planner" | "vendor" | "viewer" | null;
 }
 
+// Query key factory for consistent cache keys
+const dashboardKeys = {
+  all: ['dashboard'] as const,
+  vendor: (userId: string) => ['dashboard', 'vendor', userId] as const,
+  planner: (userId: string) => ['dashboard', 'planner', userId] as const,
+  viewer: (userId: string) => ['dashboard', 'viewer', userId] as const,
+};
+
 export function useDashboard(): UseDashboardReturn {
   const { user, userType: centralizedUserType, profile, loading: authLoading } = useAuth();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Always call both hooks to maintain hook order consistency
-  const vendorDashboard = useVendorDashboard();
-  const clientDashboard = useClientDashboard();
+  const queryClient = useQueryClient();
 
   // Use centralized user type
   const userType = centralizedUserType;
 
-  // Combine data based on user type
-  useEffect(() => {
-    console.log("🔄 useDashboard - Combining data for userType:", userType, "user:", user?.id, "authLoading:", authLoading);
+  // Always call both hooks - they handle user type logic internally
+  // This follows React's Rules of Hooks while maintaining clean architecture
+  const vendorDashboard = useVendorDashboard();
+  const clientDashboard = useClientDashboard();
 
-    // Wait for auth to finish loading and user type to be available
-    if (authLoading || !userType) {
-      console.log("🔄 useDashboard - Waiting for auth or userType, returning early");
-      setLoading(true);
-      return;
-    }
+  // React Query for dashboard data - simplified to leverage underlying hook caching
+  const {
+    data: dashboardData,
+    isLoading: queryLoading,
+    error: queryError,
+    refetch,
+  } = useQuery({
+    queryKey: user?.id && userType ? dashboardKeys[userType](user.id) : dashboardKeys.all,
+    queryFn: async (): Promise<DashboardData> => {
+      console.log("🔄 useDashboard - Composing dashboard data for userType:", userType, "user:", user?.id);
 
-    setLoading(true);
-    setError(null);
+      if (!userType) {
+        throw new Error("User type not available");
+      }
 
-    try {
-      let dashboardData: DashboardData = {
+      let data: DashboardData = {
         userType,
       };
 
       if (userType === "vendor") {
-        console.log("🏪 useDashboard - Setting up vendor dashboard data:", {
-          vendorStats: vendorDashboard.vendorStats,
-          hasRecentInquiries: !!vendorDashboard.recentInquiries,
-          hasUpcomingEvents: !!vendorDashboard.upcomingEvents,
-          profileCompletion: vendorDashboard.profileCompletion,
-          monthlyGrowth: vendorDashboard.monthlyGrowth
-        });
+        console.log("🏪 useDashboard - Setting up vendor dashboard data");
 
-        // Use vendor dashboard data
-        dashboardData = {
-          ...dashboardData,
+        // Wait for vendor data to be available
+        if (vendorDashboard.loading) {
+          throw new Error("Vendor data still loading");
+        }
+
+        if (vendorDashboard.error) {
+          throw new Error(vendorDashboard.error);
+        }
+
+        data = {
+          ...data,
           vendorStats: vendorDashboard.vendorStats || undefined,
           recentInquiries: vendorDashboard.recentInquiries,
           upcomingEvents: vendorDashboard.upcomingEvents,
@@ -108,20 +117,26 @@ export function useDashboard(): UseDashboardReturn {
           businessName: vendorDashboard.vendorStats?.businessName || profile?.business_name || "Your Business",
         };
 
-        setError(vendorDashboard.error);
       } else if (userType === "planner") {
-        // Use client dashboard data for planners
-        dashboardData = {
-          ...dashboardData,
+        // Wait for client data to be available
+        if (clientDashboard.loading) {
+          throw new Error("Planner data still loading");
+        }
+
+        if (clientDashboard.error) {
+          throw new Error(clientDashboard.error);
+        }
+
+        data = {
+          ...data,
           eventData: clientDashboard.data || undefined,
           eventName: clientDashboard.data?.event?.event_type || "Your Event",
         };
 
-        setError(clientDashboard.error);
       } else if (userType === "viewer") {
         // Viewer dashboard - minimal data
-        dashboardData = {
-          ...dashboardData,
+        data = {
+          ...data,
           viewerData: {
             savedVendors: [],
             recentSearches: [],
@@ -129,40 +144,56 @@ export function useDashboard(): UseDashboardReturn {
         };
       }
 
-      setData(dashboardData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    userType,
-    authLoading,
-    profile,
-    vendorDashboard.vendorStats,
-    vendorDashboard.recentInquiries,
-    vendorDashboard.upcomingEvents,
-    vendorDashboard.profileCompletion,
-    vendorDashboard.monthlyGrowth,
-    vendorDashboard.error,
-    clientDashboard.data,
-    clientDashboard.error
-  ]);
+      return data;
+    },
+    enabled: !!user?.id && !!userType && !authLoading &&
+             // Only enable when underlying data is ready
+             (userType === "vendor" ? !vendorDashboard.loading :
+              userType === "planner" ? !clientDashboard.loading :
+              true),
+    staleTime: 2 * 60 * 1000, // 2 minutes - data stays fresh
+    gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache
+    retry: (failureCount, error) => {
+      // Don't retry on auth errors or loading states
+      if (error?.message?.includes('auth') ||
+          error?.message?.includes('User type not available') ||
+          error?.message?.includes('still loading')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+  });
 
-  // Refetch function
-  const refetch = useCallback(async () => {
-    if (userType === "vendor") {
+  // Enhanced refetch function that invalidates all related queries
+  const handleRefetch = async () => {
+    // Invalidate dashboard query
+    await queryClient.invalidateQueries({
+      queryKey: user?.id && userType ? dashboardKeys[userType](user.id) : dashboardKeys.all,
+    });
+
+    // Also refetch the underlying hooks if they have refetch functions
+    if (userType === "vendor" && vendorDashboard.refetch) {
       await vendorDashboard.refetch();
-    } else if (userType === "planner") {
+    } else if (userType === "planner" && clientDashboard.refetch) {
       await clientDashboard.refetch();
     }
-  }, [userType, vendorDashboard, clientDashboard]);
+  };
+
+  // Calculate overall loading state
+  const isLoading = authLoading ||
+                   (userType === "vendor" ? vendorDashboard.loading :
+                    userType === "planner" ? clientDashboard.loading :
+                    false) ||
+                   queryLoading;
+
+  // Combine errors from all sources
+  const error = queryError?.message || vendorDashboard.error || clientDashboard.error || null;
 
   return {
-    data,
-    loading: authLoading || loading || (userType === "vendor" ? vendorDashboard.loading : false) || (userType === "planner" ? clientDashboard.loading : false),
+    data: dashboardData || null,
+    loading: isLoading,
     error,
-    refetch,
+    refetch: handleRefetch,
     userType,
   };
 }

@@ -21,6 +21,7 @@ import {
   SkeletonQuickActions,
 } from "@/components/ui";
 import { ErrorBoundary, ErrorFallback } from "@/components/ui/ErrorBoundary";
+import { NetworkStatus } from "@/components/ui/NetworkStatus";
 import {
   Calendar,
   MessageSquare,
@@ -48,7 +49,6 @@ export default function DashboardPage() {
     refreshProfile,
   } = useAuth();
   const router = useRouter();
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const {
     data: dashboardData,
     loading: dataLoading,
@@ -56,14 +56,17 @@ export default function DashboardPage() {
     refetch,
   } = useDashboard();
 
+  // Check if we have cached data available for instant UI
+  const hasCachedData = !!dashboardData;
+  const isRefreshing = dataLoading && hasCachedData;
+
   // Handle refresh with loading state
   const handleRefresh = async () => {
-    setIsRefreshing(true);
     try {
       await refetch();
       await refreshProfile(); // Also refresh profile data
-    } finally {
-      setIsRefreshing(false);
+    } catch (error) {
+      console.error("Error refreshing dashboard:", error);
     }
   };
 
@@ -89,12 +92,15 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, profile, router]);
 
-  if (authLoading || dataLoading) {
+  // Show loading only if we don't have cached data
+  if ((authLoading || dataLoading) && !hasCachedData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
-          <p className="text-body text-text-secondary">Loading dashboard...</p>
+          <p className="text-body text-text-secondary">
+            {authLoading ? "Authenticating..." : "Loading dashboard..."}
+          </p>
         </div>
       </div>
     );
@@ -133,6 +139,7 @@ export default function DashboardPage() {
   // Render unified dashboard for all users using ClientDashboardLayout
   return (
     <ErrorBoundary fallback={ErrorFallback}>
+      <NetworkStatus />
       <ClientDashboardLayout>
         <div className="space-y-6 max-w-8xl mx-auto">
           {/* Welcome Header with Refresh Button */}
@@ -141,6 +148,12 @@ export default function DashboardPage() {
               <div>
                 <h1 className="font-light text-gray-900">
                   Welcome back, {getDisplayName()}! 👋
+                  {isRefreshing && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-sm text-gray-500">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      Refreshing...
+                    </span>
+                  )}
                 </h1>
                 <p className="text-gray-600">
                   {userType === "vendor"

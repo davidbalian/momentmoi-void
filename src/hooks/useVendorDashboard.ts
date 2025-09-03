@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClientComponentClient } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { 
-  handleSupabaseError, 
-  createErrorContext, 
+import {
+  handleSupabaseError,
+  createErrorContext,
   retryOperation,
   DASHBOARD_ERROR_MESSAGES,
-  type DashboardError 
+  type DashboardError
 } from "@/lib/error-handler";
 
 export interface VendorStats {
@@ -46,18 +47,16 @@ export interface UpcomingEvent {
   createdAt: string;
 }
 
-// Cache interface
-interface DashboardCache {
-  stats: VendorStats | null;
-  inquiries: RecentInquiry[];
-  upcomingEvents: UpcomingEvent[];
-  profileCompletion: number;
-  monthlyGrowth: number;
-  timestamp: number;
-}
-
-// Cache duration: 5 minutes
-const CACHE_DURATION = 5 * 60 * 1000;
+// Query key factory for consistent cache keys
+const vendorDashboardKeys = {
+  all: ['vendor-dashboard'] as const,
+  vendor: (vendorId: string) => ['vendor-dashboard', 'vendor', vendorId] as const,
+  stats: (vendorId: string) => ['vendor-dashboard', 'stats', vendorId] as const,
+  inquiries: (vendorId: string) => ['vendor-dashboard', 'inquiries', vendorId] as const,
+  events: (vendorId: string) => ['vendor-dashboard', 'events', vendorId] as const,
+  profile: (vendorId: string) => ['vendor-dashboard', 'profile', vendorId] as const,
+  growth: (vendorId: string) => ['vendor-dashboard', 'growth', vendorId] as const,
+};
 
 /**
  * Vendor Dashboard Hook
@@ -76,49 +75,19 @@ const CACHE_DURATION = 5 * 60 * 1000;
  * @returns Vendor dashboard data and state management
  */
 export function useVendorDashboard() {
-  const { user } = useAuth();
-  const [vendorStats, setVendorStats] = useState<VendorStats | null>(null);
-  const [recentInquiries, setRecentInquiries] = useState<RecentInquiry[]>([]);
-  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
-  const [profileCompletion, setProfileCompletion] = useState(0);
-  const [monthlyGrowth, setMonthlyGrowth] = useState(0);
-  
-  // Individual loading states for better UX
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [inquiriesLoading, setInquiriesLoading] = useState(false);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [growthLoading, setGrowthLoading] = useState(false);
-  
-  // Overall loading state
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dashboardError, setDashboardError] = useState<DashboardError | null>(null);
-  
-  // Cache state
-  const [cache, setCache] = useState<DashboardCache>({
-    stats: null,
-    inquiries: [],
-    upcomingEvents: [],
-    profileCompletion: 0,
-    monthlyGrowth: 0,
-    timestamp: 0,
-  });
-  
-  // Track vendor ID for real-time subscriptions
-  const [vendorId, setVendorId] = useState<string | null>(null);
-  const [vendorIdLookupCompleted, setVendorIdLookupCompleted] = useState(false);
-  const subscriptionsRef = useRef<RealtimeChannel[]>([]);
-
+  const { user, userType } = useAuth();
   const supabase = createClientComponentClient();
+  const queryClient = useQueryClient();
 
-  // Check if cache is valid
-  const isCacheValid = useCallback(() => {
-    return Date.now() - cache.timestamp < CACHE_DURATION;
-  }, [cache.timestamp]);
+  // Get vendor ID first
+  const [vendorId, setVendorId] = React.useState<string | null>(null);
+  const [vendorIdLookupCompleted, setVendorIdLookupCompleted] = React.useState(false);
+  const subscriptionsRef = React.useRef<RealtimeChannel[]>([]);
+
+
 
   // Get vendor profile ID with error handling and retry logic
-  const getVendorId = useCallback(async () => {
+  const getVendorId = React.useCallback(async () => {
     if (!user?.id) {
       console.log("No user ID available for vendor profile lookup");
       return null;
@@ -241,27 +210,57 @@ export function useVendorDashboard() {
     return null;
   }, [user?.id]); // Only include user.id as dependency to prevent infinite loops
 
-  // Fetch vendor statistics with enhanced error handling
-  const fetchVendorStats = useCallback(async (forceRefresh = false) => {
-    if (!vendorId) {
-      console.log("Cannot fetch vendor stats: no vendor ID available");
-      return;
+  // Utility functions
+  const calculateAverageResponseTime = (responseTimes: any[]): string => {
+    if (responseTimes.length === 0) return "N/A";
+
+    const totalHours = responseTimes.reduce((total, inquiry) => {
+      const created = new Date(inquiry.created_at);
+      const responded = new Date(inquiry.responded_at);
+      const diffHours =
+        (responded.getTime() - created.getTime()) / (1000 * 60 * 60);
+      return total + diffHours;
+    }, 0);
+
+    const avgHours = totalHours / responseTimes.length;
+
+    if (avgHours < 1) {
+      return `${Math.round(avgHours * 60)} minutes`;
+    } else if (avgHours < 24) {
+      return `${avgHours.toFixed(1)} hours`;
+    } else {
+      return `${Math.round(avgHours / 24)} days`;
     }
+  };
 
-    // Use cache if valid and not forcing refresh
-    if (!forceRefresh && cache.stats && isCacheValid()) {
-      setVendorStats(cache.stats);
-      return;
-    }
-
-    setStatsLoading(true);
-    setError(null);
-    setDashboardError(null);
-
-    const context = createErrorContext('useVendorDashboard', 'fetchVendorStats', user?.id, vendorId);
-
+  const parseBudgetRange = (budgetRange: string): number | null => {
     try {
-      const stats = await retryOperation(async () => {
+      const match = budgetRange.match(/[\d,]+/);
+      if (match) {
+        return parseFloat(match[0].replace(/,/g, ""));
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // React Query for vendor stats
+  const {
+    data: vendorStats,
+    isLoading: statsLoading,
+    error: statsError,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: vendorId ? vendorDashboardKeys.stats(vendorId) : vendorDashboardKeys.all,
+    queryFn: async (): Promise<VendorStats> => {
+      if (!vendorId) throw new Error("Vendor ID not available");
+
+      const context = createErrorContext('useVendorDashboard', 'fetchVendorStats', user?.id, vendorId);
+
+      console.log("🔄 useVendorDashboard - Fetching vendor stats for:", vendorId);
+
+      return await retryOperation(async () => {
         // Get total inquiries
         const { count: totalInquiries, error: inquiriesError } = await supabase
           .from("vendor_inquiries")
@@ -346,50 +345,31 @@ export function useVendorDashboard() {
           businessName: vendorProfile?.business_name || "Your Business",
         };
       }, 3, 1000, context);
+    },
+    enabled: !!vendorId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-      setVendorStats(stats);
-      
-      // Update cache
-      setCache(prev => ({
-        ...prev,
-        stats,
-        timestamp: Date.now(),
-      }));
-    } catch (err) {
-      const dashboardError = handleSupabaseError(err, context);
-      setError(dashboardError.userMessage);
-      setDashboardError(dashboardError);
-      console.error("Error fetching vendor stats:", dashboardError);
-    } finally {
-      setStatsLoading(false);
-    }
-  }, [cache.stats, isCacheValid, supabase, user?.id, vendorId]);
+  // React Query for recent inquiries
+  const {
+    data: recentInquiries = [],
+    isLoading: inquiriesLoading,
+    error: inquiriesError,
+    refetch: refetchInquiries,
+  } = useQuery({
+    queryKey: vendorId ? vendorDashboardKeys.inquiries(vendorId) : vendorDashboardKeys.all,
+    queryFn: async (): Promise<RecentInquiry[]> => {
+      if (!vendorId) throw new Error("Vendor ID not available");
 
-  // Fetch recent inquiries with enhanced error handling
-  const fetchRecentInquiries = useCallback(async (forceRefresh = false) => {
-    if (!vendorId) {
-      console.log("Cannot fetch recent inquiries: no vendor ID available");
-      return;
-    }
+      const context = createErrorContext('useVendorDashboard', 'fetchRecentInquiries', user?.id, vendorId);
 
-    // Use cache if valid and not forcing refresh
-    if (!forceRefresh && cache.inquiries.length > 0 && isCacheValid()) {
-      setRecentInquiries(cache.inquiries);
-      return;
-    }
+      console.log("🔄 useVendorDashboard - Fetching recent inquiries for:", vendorId);
 
-    setInquiriesLoading(true);
-    setError(null);
-    setDashboardError(null);
-
-    const context = createErrorContext('useVendorDashboard', 'fetchRecentInquiries', user?.id, vendorId);
-
-    try {
-      const inquiries = await retryOperation(async () => {
+      return await retryOperation(async () => {
         const { data: inquiries, error } = await supabase
           .from("vendor_inquiries")
-          .select(
-            `
+          .select(`
             id,
             created_at,
             message,
@@ -397,75 +377,50 @@ export function useVendorDashboard() {
             event_type,
             event_date,
             client_name
-          `
-          )
+          `)
           .eq("vendor_id", vendorId)
           .order("created_at", { ascending: false })
           .limit(5);
 
         if (error) throw error;
 
-        const formattedInquiries: RecentInquiry[] = (inquiries || []).map(
-          (inquiry) => ({
-            id: inquiry.id,
-            clientName: inquiry.client_name || "Anonymous",
-            eventType: inquiry.event_type || "Event",
-            eventDate: inquiry.event_date || "",
-            message: inquiry.message || "",
-            status: inquiry.status as "new" | "responded" | "booked" | "declined" | "archived",
-            createdAt: inquiry.created_at,
-          })
-        );
-
-        return formattedInquiries;
+        return (inquiries || []).map((inquiry) => ({
+          id: inquiry.id,
+          clientName: inquiry.client_name || "Anonymous",
+          eventType: inquiry.event_type || "Event",
+          eventDate: inquiry.event_date || "",
+          message: inquiry.message || "",
+          status: inquiry.status as "new" | "responded" | "booked" | "declined" | "archived",
+          createdAt: inquiry.created_at,
+        }));
       }, 3, 1000, context);
+    },
+    enabled: !!vendorId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-      setRecentInquiries(inquiries);
-      
-      // Update cache
-      setCache(prev => ({
-        ...prev,
-        inquiries,
-        timestamp: Date.now(),
-      }));
-    } catch (err) {
-      const dashboardError = handleSupabaseError(err, context);
-      setError(dashboardError.userMessage);
-      setDashboardError(dashboardError);
-      console.error("Error fetching recent inquiries:", dashboardError);
-    } finally {
-      setInquiriesLoading(false);
-    }
-  }, [cache.inquiries, isCacheValid, supabase, user?.id, vendorId]);
+  // React Query for upcoming events
+  const {
+    data: upcomingEvents = [],
+    isLoading: eventsLoading,
+    error: eventsError,
+    refetch: refetchEvents,
+  } = useQuery({
+    queryKey: vendorId ? vendorDashboardKeys.events(vendorId) : vendorDashboardKeys.all,
+    queryFn: async (): Promise<UpcomingEvent[]> => {
+      if (!vendorId) throw new Error("Vendor ID not available");
 
-  // Fetch upcoming events with enhanced error handling
-  const fetchUpcomingEvents = useCallback(async (forceRefresh = false) => {
-    if (!vendorId) {
-      console.log("Cannot fetch upcoming events: no vendor ID available");
-      return;
-    }
+      const context = createErrorContext('useVendorDashboard', 'fetchUpcomingEvents', user?.id, vendorId);
 
-    // Use cache if valid and not forcing refresh
-    if (!forceRefresh && cache.upcomingEvents.length > 0 && isCacheValid()) {
-      setUpcomingEvents(cache.upcomingEvents);
-      return;
-    }
+      console.log("🔄 useVendorDashboard - Fetching upcoming events for:", vendorId);
 
-    setEventsLoading(true);
-    setError(null);
-    setDashboardError(null);
-
-    const context = createErrorContext('useVendorDashboard', 'fetchUpcomingEvents', user?.id, vendorId);
-
-    try {
-      const events = await retryOperation(async () => {
-        // Get today's date in YYYY-MM-DD format
+      return await retryOperation(async () => {
         const today = new Date().toISOString().split('T')[0];
 
         const { data: bookedInquiries, error } = await supabase
           .from("vendor_inquiries")
-          .select(
-            `
+          .select(`
             id,
             client_name,
             client_email,
@@ -476,8 +431,7 @@ export function useVendorDashboard() {
             budget_range,
             message,
             created_at
-          `
-          )
+          `)
           .eq("vendor_id", vendorId)
           .eq("status", "booked")
           .gte("event_date", today)
@@ -486,82 +440,59 @@ export function useVendorDashboard() {
 
         if (error) throw error;
 
-        const formattedEvents: UpcomingEvent[] = (bookedInquiries || []).map(
-          (inquiry) => ({
-            id: inquiry.id,
-            clientName: inquiry.client_name || "Anonymous",
-            clientEmail: inquiry.client_email || "",
-            eventType: inquiry.event_type || "Event",
-            eventDate: inquiry.event_date,
-            startTime: undefined, // Not available in inquiries table
-            endTime: undefined, // Not available in inquiries table
-            location: inquiry.location || undefined,
-            guestCount: inquiry.guest_count || undefined,
-            budgetAmount: inquiry.budget_range ? parseBudgetRange(inquiry.budget_range) || undefined : undefined,
-            status: "confirmed" as const, // All booked inquiries are confirmed
-            notes: inquiry.message || undefined,
-            createdAt: inquiry.created_at,
-          })
-        );
-
-        return formattedEvents;
+        return (bookedInquiries || []).map((inquiry) => ({
+          id: inquiry.id,
+          clientName: inquiry.client_name || "Anonymous",
+          clientEmail: inquiry.client_email || "",
+          eventType: inquiry.event_type || "Event",
+          eventDate: inquiry.event_date,
+          startTime: undefined,
+          endTime: undefined,
+          location: inquiry.location || undefined,
+          guestCount: inquiry.guest_count || undefined,
+          budgetAmount: inquiry.budget_range ? parseBudgetRange(inquiry.budget_range) || undefined : undefined,
+          status: "confirmed" as const,
+          notes: inquiry.message || undefined,
+          createdAt: inquiry.created_at,
+        }));
       }, 3, 1000, context);
+    },
+    enabled: !!vendorId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-      setUpcomingEvents(events);
-      
-      // Update cache
-      setCache(prev => ({
-        ...prev,
-        upcomingEvents: events,
-        timestamp: Date.now(),
-      }));
-    } catch (err) {
-      const dashboardError = handleSupabaseError(err, context);
-      setError(dashboardError.userMessage);
-      setDashboardError(dashboardError);
-      console.error("Error fetching upcoming events:", dashboardError);
-    } finally {
-      setEventsLoading(false);
-    }
-  }, [cache.upcomingEvents, isCacheValid, supabase, user?.id, vendorId]);
+  // React Query for profile completion
+  const {
+    data: profileCompletion = 0,
+    isLoading: profileLoading,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useQuery({
+    queryKey: user?.id ? vendorDashboardKeys.profile(user.id) : vendorDashboardKeys.all,
+    queryFn: async (): Promise<number> => {
+      if (!user?.id) throw new Error("User ID not available");
 
-  // Calculate profile completion with enhanced error handling
-  const calculateProfileCompletion = useCallback(async (forceRefresh = false) => {
-    if (!user?.id) return;
+      const context = createErrorContext('useVendorDashboard', 'calculateProfileCompletion', user.id);
 
-    // Use cache if valid and not forcing refresh
-    if (!forceRefresh && cache.profileCompletion > 0 && isCacheValid()) {
-      setProfileCompletion(cache.profileCompletion);
-      return;
-    }
+      console.log("🔄 useVendorDashboard - Calculating profile completion for:", user.id);
 
-    setProfileLoading(true);
-    setError(null);
-    setDashboardError(null);
-
-    const context = createErrorContext('useVendorDashboard', 'calculateProfileCompletion', user.id);
-
-    try {
-      const completionPercentage = await retryOperation(async () => {
+      return await retryOperation(async () => {
         const { data: profile, error } = await supabase
           .from("vendor_profiles")
-          .select(
-            `
+          .select(`
             business_name,
             description,
             logo_url,
             business_category,
             event_types
-          `
-          )
+          `)
           .eq("user_id", user.id)
           .single();
 
         if (error) throw error;
 
-        if (!profile) {
-          return 0;
-        }
+        if (!profile) return 0;
 
         const requiredFields = [
           "business_name",
@@ -569,63 +500,39 @@ export function useVendorDashboard() {
           "business_category",
         ];
 
-        const completedFields = requiredFields.filter(
-          (field) => {
-            const value = profile[field as keyof typeof profile];
-            return value && value.toString().trim() !== "";
-          }
-        );
+        const completedFields = requiredFields.filter((field) => {
+          const value = profile[field as keyof typeof profile];
+          return value && value.toString().trim() !== "";
+        });
 
-        return Math.round(
-          (completedFields.length / requiredFields.length) * 100
-        );
+        return Math.round((completedFields.length / requiredFields.length) * 100);
       }, 2, 1000, context);
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
 
-      setProfileCompletion(completionPercentage);
-      
-      // Update cache
-      setCache(prev => ({
-        ...prev,
-        profileCompletion: completionPercentage,
-        timestamp: Date.now(),
-      }));
-    } catch (err) {
-      const dashboardError = handleSupabaseError(err, context);
-      setError(dashboardError.userMessage);
-      setDashboardError(dashboardError);
-      console.error("Error calculating profile completion:", dashboardError);
-      setProfileCompletion(0);
-    } finally {
-      setProfileLoading(false);
-    }
-  }, [user?.id, cache.profileCompletion, isCacheValid, supabase]);
+  // React Query for monthly growth
+  const {
+    data: monthlyGrowth = 0,
+    isLoading: growthLoading,
+    error: growthError,
+    refetch: refetchGrowth,
+  } = useQuery({
+    queryKey: vendorId ? vendorDashboardKeys.growth(vendorId) : vendorDashboardKeys.all,
+    queryFn: async (): Promise<number> => {
+      if (!vendorId) throw new Error("Vendor ID not available");
 
-  // Calculate monthly growth with enhanced error handling
-  const calculateMonthlyGrowth = useCallback(async (forceRefresh = false) => {
-    if (!vendorId) {
-      console.log("Cannot calculate monthly growth: no vendor ID available");
-      return;
-    }
+      const context = createErrorContext('useVendorDashboard', 'calculateMonthlyGrowth', user?.id, vendorId);
 
-    // Use cache if valid and not forcing refresh
-    if (!forceRefresh && cache.monthlyGrowth !== 0 && isCacheValid()) {
-      setMonthlyGrowth(cache.monthlyGrowth);
-      return;
-    }
+      console.log("🔄 useVendorDashboard - Calculating monthly growth for:", vendorId);
 
-    setGrowthLoading(true);
-    setError(null);
-    setDashboardError(null);
-
-    const context = createErrorContext('useVendorDashboard', 'calculateMonthlyGrowth', user?.id, vendorId);
-
-    try {
-      const growth = await retryOperation(async () => {
+      return await retryOperation(async () => {
         const now = new Date();
         const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // Get profile views for last month
         const { data: lastMonthData, error: lastMonthError } = await supabase
           .from("vendor_analytics")
           .select("profile_views")
@@ -635,7 +542,6 @@ export function useVendorDashboard() {
 
         if (lastMonthError) throw lastMonthError;
 
-        // Get profile views for this month
         const { data: thisMonthData, error: thisMonthError } = await supabase
           .from("vendor_analytics")
           .select("profile_views")
@@ -651,77 +557,52 @@ export function useVendorDashboard() {
           ? Math.round(((thisMonthViews - lastMonthViews) / lastMonthViews) * 100)
           : 0;
       }, 2, 1000, context);
+    },
+    enabled: !!vendorId,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 15 * 60 * 1000, // 15 minutes
+  });
 
-      setMonthlyGrowth(growth);
-      
-      // Update cache
-      setCache(prev => ({
-        ...prev,
-        monthlyGrowth: growth,
-        timestamp: Date.now(),
-      }));
-    } catch (err) {
-      const dashboardError = handleSupabaseError(err, context);
-      setError(dashboardError.userMessage);
-      setDashboardError(dashboardError);
-      console.error("Error calculating monthly growth:", dashboardError);
-      setMonthlyGrowth(0);
-    } finally {
-      setGrowthLoading(false);
-    }
-  }, [cache.monthlyGrowth, isCacheValid, supabase, user?.id, vendorId]);
-
-  // Utility function to calculate average response time
-  const calculateAverageResponseTime = (responseTimes: any[]): string => {
-    if (responseTimes.length === 0) return "N/A";
-
-    const totalHours = responseTimes.reduce((total, inquiry) => {
-      const created = new Date(inquiry.created_at);
-      const responded = new Date(inquiry.responded_at);
-      const diffHours =
-        (responded.getTime() - created.getTime()) / (1000 * 60 * 60);
-      return total + diffHours;
-    }, 0);
-
-    const avgHours = totalHours / responseTimes.length;
-
-    if (avgHours < 1) {
-      return `${Math.round(avgHours * 60)} minutes`;
-    } else if (avgHours < 24) {
-      return `${avgHours.toFixed(1)} hours`;
-    } else {
-      return `${Math.round(avgHours / 24)} days`;
-    }
-  };
-
-  // Parse budget range string to numeric value
-  const parseBudgetRange = (budgetRange: string): number | null => {
-    try {
-      // Extract the first number from ranges like "€5000-€10000"
-      const match = budgetRange.match(/[\d,]+/);
-      if (match) {
-        return parseFloat(match[0].replace(/,/g, ""));
+  // Initialize vendor ID
+  React.useEffect(() => {
+    const initializeVendor = async () => {
+      if (!user || userType !== "vendor") {
+        setVendorIdLookupCompleted(true);
+        return;
       }
-      return null;
-    } catch {
-      return null;
-    }
-  };
 
-  // Setup real-time subscriptions with error handling
-  const setupRealTimeSubscriptions = async () => {
-    if (!vendorId) {
-      console.log("Cannot setup real-time subscriptions: no vendor ID available");
-      return;
-    }
+      console.log("Initializing vendor for user:", user.id);
+      try {
+        const id = await getVendorId();
+        setVendorId(id);
+      } catch (error) {
+        console.error("Error during vendor initialization:", error);
+      } finally {
+        setVendorIdLookupCompleted(true);
+      }
+    };
 
-    // Clean up existing subscriptions
+    initializeVendor();
+  }, [user, userType]);
+
+  // Setup real-time subscriptions with cache invalidation
+  React.useEffect(() => {
+    if (!vendorId) return;
+
+    const cleanupSubscriptions = () => {
+      subscriptionsRef.current.forEach((subscription) => {
+        if (subscription) {
+          supabase.removeChannel(subscription);
+        }
+      });
+      subscriptionsRef.current = [];
+    };
+
     cleanupSubscriptions();
 
     const context = createErrorContext('useVendorDashboard', 'setupRealTimeSubscriptions', user?.id, vendorId);
 
     try {
-      // Subscribe to vendor_inquiries changes
       const inquiriesSubscription = supabase
         .channel(`vendor-inquiries-${vendorId}`)
         .on(
@@ -734,14 +615,12 @@ export function useVendorDashboard() {
           },
           (payload) => {
             console.log("Inquiries real-time update:", payload);
-            // Refetch both stats and recent inquiries when inquiries change
-            fetchVendorStats(true); // Force refresh
-            fetchRecentInquiries(true); // Force refresh
+            queryClient.invalidateQueries({ queryKey: vendorDashboardKeys.stats(vendorId) });
+            queryClient.invalidateQueries({ queryKey: vendorDashboardKeys.inquiries(vendorId) });
           }
         )
         .subscribe();
 
-      // Subscribe to vendor_inquiries changes for upcoming events (booked inquiries)
       const bookedInquiriesSubscription = supabase
         .channel(`vendor-inquiries-booked-${vendorId}`)
         .on(
@@ -754,14 +633,12 @@ export function useVendorDashboard() {
           },
           (payload) => {
             console.log("Booked inquiries real-time update:", payload);
-            // Refetch stats and upcoming events when booked inquiries change
-            fetchVendorStats(true); // Force refresh
-            fetchUpcomingEvents(true); // Force refresh
+            queryClient.invalidateQueries({ queryKey: vendorDashboardKeys.stats(vendorId) });
+            queryClient.invalidateQueries({ queryKey: vendorDashboardKeys.events(vendorId) });
           }
         )
         .subscribe();
 
-      // Subscribe to vendor_analytics changes
       const analyticsSubscription = supabase
         .channel(`vendor-analytics-${vendorId}`)
         .on(
@@ -774,14 +651,12 @@ export function useVendorDashboard() {
           },
           (payload) => {
             console.log("Analytics real-time update:", payload);
-            // Refetch stats and monthly growth when analytics change
-            fetchVendorStats(true); // Force refresh
-            calculateMonthlyGrowth(true); // Force refresh
+            queryClient.invalidateQueries({ queryKey: vendorDashboardKeys.stats(vendorId) });
+            queryClient.invalidateQueries({ queryKey: vendorDashboardKeys.growth(vendorId) });
           }
         )
         .subscribe();
 
-      // Subscribe to vendor_profiles changes
       const profileSubscription = supabase
         .channel(`vendor-profile-${user?.id}`)
         .on(
@@ -794,13 +669,11 @@ export function useVendorDashboard() {
           },
           (payload) => {
             console.log("Profile real-time update:", payload);
-            // Refetch profile completion when profile changes
-            calculateProfileCompletion(true); // Force refresh
+            queryClient.invalidateQueries({ queryKey: vendorDashboardKeys.profile(user?.id!) });
           }
         )
         .subscribe();
 
-      // Store subscriptions for cleanup
       subscriptionsRef.current = [
         inquiriesSubscription,
         bookedInquiriesSubscription,
@@ -812,153 +685,28 @@ export function useVendorDashboard() {
     } catch (err) {
       const dashboardError = handleSupabaseError(err, context);
       console.error("Error setting up real-time subscriptions:", dashboardError);
-      // Don't set global error for real-time connection issues
-      // Just log it and continue with static data
-    }
-  };
-
-  // Cleanup subscriptions
-  const cleanupSubscriptions = () => {
-    subscriptionsRef.current.forEach((subscription) => {
-      if (subscription) {
-        supabase.removeChannel(subscription);
-      }
-    });
-    subscriptionsRef.current = [];
-  };
-
-  // Load all data with enhanced error handling
-  const loadDashboardData = useCallback(async (forceRefresh = false) => {
-    if (!vendorId) {
-      console.log("Cannot load dashboard data: no vendor ID available (this should not happen in normal flow)");
-      // Don't set error here since this function should only be called when vendorId is available
-      // The error should be handled by the useEffect that calls this function
-      setLoading(false);
-      return;
     }
 
-    setLoading(true);
-    setError(null);
-    setDashboardError(null);
+    return cleanupSubscriptions;
+  }, [vendorId, user?.id, supabase, queryClient]);
 
-    // Check if we can use cache for initial load (cache checks are handled in individual fetch functions)
-    // For initial load, we'll let individual functions handle their own cache logic
+  // Calculate overall loading and error states
+  const loading = statsLoading || inquiriesLoading || eventsLoading || profileLoading || growthLoading;
+  const error = statsError?.message || inquiriesError?.message || eventsError?.message || profileError?.message || growthError?.message || null;
 
-    try {
-      await Promise.all([
-        fetchVendorStats(forceRefresh),
-        fetchRecentInquiries(forceRefresh),
-        fetchUpcomingEvents(forceRefresh),
-        calculateProfileCompletion(forceRefresh),
-        calculateMonthlyGrowth(forceRefresh),
-      ]);
-    } catch (err) {
-      const context = createErrorContext('useVendorDashboard', 'loadDashboardData', user?.id || undefined, vendorId || undefined);
-      const dashboardError = handleSupabaseError(err, context);
-      setError(dashboardError.userMessage);
-      setDashboardError(dashboardError);
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchVendorStats, fetchRecentInquiries, fetchUpcomingEvents, calculateProfileCompletion, calculateMonthlyGrowth, user?.id, vendorId]);
-
-  // Selective refresh functions for better UX
-  const refreshStats = useCallback(() => {
-    return fetchVendorStats(true);
-  }, [fetchVendorStats]);
-
-  const refreshInquiries = useCallback(() => {
-    return fetchRecentInquiries(true);
-  }, [fetchRecentInquiries]);
-
-  const refreshEvents = useCallback(() => {
-    return fetchUpcomingEvents(true);
-  }, [fetchUpcomingEvents]);
-
-  const refreshProfileData = useCallback(() => {
-    return Promise.all([
-      calculateProfileCompletion(true),
-      calculateMonthlyGrowth(true)
+  // Smart refresh function
+  const refetch = React.useCallback(async () => {
+    await Promise.all([
+      refetchStats(),
+      refetchInquiries(),
+      refetchEvents(),
+      refetchProfile(),
+      refetchGrowth(),
     ]);
-  }, [calculateProfileCompletion, calculateMonthlyGrowth]);
-
-  // Smart refresh that only refreshes dynamic data
-  const smartRefresh = useCallback(() => {
-    // Only refresh data that changes frequently
-    return Promise.all([
-      refreshStats(),
-      refreshInquiries(),
-      refreshEvents(),
-      refreshProfileData()
-    ]);
-  }, [refreshStats, refreshInquiries, refreshEvents, refreshProfileData]);
-
-  // Initialize vendor ID and setup
-  useEffect(() => {
-    const initializeVendor = async () => {
-      if (!user) {
-        console.log("No user available for vendor initialization");
-        return;
-      }
-
-      if (!user.id) {
-        console.log("User exists but no ID available");
-        return;
-      }
-
-      console.log("Initializing vendor for user:", user.id);
-      try {
-        const id = await getVendorId();
-        console.log("Vendor ID result:", id);
-        setVendorId(id);
-      } catch (error) {
-        console.error("Error during vendor initialization:", error);
-        setError("Failed to initialize vendor dashboard. Please try refreshing the page.");
-        setLoading(false);
-      } finally {
-        setVendorIdLookupCompleted(true);
-      }
-    };
-
-    initializeVendor();
-  }, [user]);
-
-  // Setup real-time subscriptions when vendor ID is available
-  useEffect(() => {
-    if (vendorId) {
-      setupRealTimeSubscriptions();
-    }
-
-    // Cleanup on unmount or when vendor ID changes
-    return () => {
-      cleanupSubscriptions();
-    };
-  }, [vendorId]);
-
-  // Load data when vendor ID is available
-  useEffect(() => {
-    // Only proceed if vendor ID lookup is completed and we have a definitive result
-    if (vendorIdLookupCompleted) {
-      if (vendorId) {
-        console.log("Loading dashboard data for vendor:", vendorId);
-        // Clear any previous error when we successfully find vendor profile
-        setError(null);
-        setDashboardError(null);
-        loadDashboardData();
-      } else if (vendorId === null) {
-        // Vendor ID lookup completed but no vendor profile found
-        console.log("Vendor ID lookup completed - no vendor profile found");
-        if (user?.id) {
-          setError("Vendor profile not found. This dashboard is only available for vendor accounts. If you believe this is an error, please complete vendor onboarding or contact support.");
-        }
-        setLoading(false);
-      }
-    }
-    // Don't do anything if vendor ID lookup is still in progress
-  }, [vendorId, vendorIdLookupCompleted, user?.id]); // Removed loadDashboardData from dependencies to prevent infinite loop
+  }, [refetchStats, refetchInquiries, refetchEvents, refetchProfile, refetchGrowth]);
 
   return {
-    vendorStats,
+    vendorStats: vendorStats || null,
     recentInquiries,
     upcomingEvents,
     profileCompletion,
@@ -970,11 +718,13 @@ export function useVendorDashboard() {
     profileLoading,
     growthLoading,
     error,
-    dashboardError,
-    refetch: smartRefresh, // Use smart refresh instead of full refresh
-    refreshStats,
-    refreshInquiries,
-    refreshEvents,
-    refreshProfileData,
+    dashboardError: null, // Simplified for now
+    refetch,
+    refreshStats: refetchStats,
+    refreshInquiries: refetchInquiries,
+    refreshEvents: refetchEvents,
+    refreshProfileData: React.useCallback(async () => {
+      await Promise.all([refetchProfile(), refetchGrowth()]);
+    }, [refetchProfile, refetchGrowth]),
   };
 }

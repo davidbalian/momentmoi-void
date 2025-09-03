@@ -38,11 +38,11 @@ export async function middleware(request: NextRequest) {
   // Define protected routes
   const protectedRoutes = ['/dashboard', '/profile', '/event']
   const authRoutes = ['/auth/login', '/auth/register', '/auth/reset-password']
-  
-  const isProtectedRoute = protectedRoutes.some(route => 
+
+  const isProtectedRoute = protectedRoutes.some(route =>
     request.nextUrl.pathname.startsWith(route)
   )
-  const isAuthRoute = authRoutes.some(route => 
+  const isAuthRoute = authRoutes.some(route =>
     request.nextUrl.pathname.startsWith(route)
   )
 
@@ -57,25 +57,40 @@ export async function middleware(request: NextRequest) {
   if (user && isAuthRoute) {
     // Get user profile to determine appropriate dashboard
     try {
-      const { data: profile } = await supabase
+      // Optimized query: only fetch necessary fields and add error handling
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('user_type, onboarding_completed')
         .eq('id', user.id)
         .single()
 
+      if (error) {
+        console.error('Middleware profile fetch error:', error.code, error.message)
+
+        // Handle specific error cases
+        if (error.code === 'PGRST116') {
+          // Profile doesn't exist, redirect to onboarding
+          console.log('Profile not found, redirecting to onboarding')
+          return NextResponse.redirect(new URL('/onboarding', request.url))
+        }
+
+        // For other errors, fallback to dashboard
+        console.error('Profile fetch failed, falling back to dashboard')
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+
       // If profile exists and user is onboarded, redirect to appropriate dashboard
       if (profile && profile.onboarding_completed) {
-        const dashboardUrl = profile.user_type === 'vendor'
-          ? '/dashboard'  // All user types use the same dashboard route now
-          : '/dashboard' // All user types use the same dashboard route now
+        const dashboardUrl = '/dashboard' // All user types use the same dashboard route now
         return NextResponse.redirect(new URL(dashboardUrl, request.url))
       } else {
         // User not onboarded, redirect to onboarding
+        console.log('User not onboarded, redirecting to onboarding')
         return NextResponse.redirect(new URL('/onboarding', request.url))
       }
     } catch (error) {
-      console.error('Error fetching user profile in middleware:', error)
-      // Fallback to dashboard if profile fetch fails
+      console.error('Unexpected error in middleware profile fetch:', error)
+      // Fallback to dashboard if unexpected error occurs
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
   }

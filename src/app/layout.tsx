@@ -3,6 +3,8 @@ import { Lato } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { QueryProvider } from "@/components/providers/QueryProvider";
+import { ServiceWorkerProvider } from "@/components/providers/ServiceWorkerProvider";
 import { Toaster } from "sonner";
 
 // Local font - Ivy Presto Display
@@ -24,6 +26,17 @@ export const metadata: Metadata = {
   title: "MomentMoi - Event Planning Platform",
   description:
     "Sophisticated event planning platform for couples, vendors, and event planners",
+  manifest: "/manifest.json",
+  themeColor: "#507c7b",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "MomentMoi",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -36,7 +49,11 @@ export default function RootLayout({
       <body
         className={`${ivyPrestoDisplay.variable} ${lato.variable} antialiased`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <QueryProvider>
+          <ServiceWorkerProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ServiceWorkerProvider>
+        </QueryProvider>
         <Toaster />
       </body>
     </html>

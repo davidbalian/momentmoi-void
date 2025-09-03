@@ -23,7 +23,71 @@ export interface UserProfile {
   business_name?: string | null;
   location_preference?: string | null;
   created_at: string;
+  _cachedAt?: number; // Timestamp when cached
 }
+
+// Cache configuration
+const CACHE_KEY = "momentmoi_auth_cache";
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const PROFILE_CACHE_KEY = "momentmoi_profile_cache";
+const PROFILE_CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+
+interface AuthCache {
+  user: any;
+  session: any;
+  profile: UserProfile | null;
+  userType: UserType;
+  timestamp: number;
+}
+
+// Cache utilities
+const getAuthCache = (): AuthCache | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+
+    const cache: AuthCache = JSON.parse(cached);
+    const now = Date.now();
+
+    // Check if cache is still valid
+    if (now - cache.timestamp > CACHE_DURATION) {
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+
+    return cache;
+  } catch (error) {
+    console.error("Error reading auth cache:", error);
+    localStorage.removeItem(CACHE_KEY);
+    return null;
+  }
+};
+
+const setAuthCache = (data: Partial<AuthCache>) => {
+  if (typeof window === "undefined") return;
+
+  try {
+    const cache: AuthCache = {
+      user: data.user || null,
+      session: data.session || null,
+      profile: data.profile || null,
+      userType: data.userType || null,
+      timestamp: Date.now(),
+    };
+
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error setting auth cache:", error);
+  }
+};
+
+const clearAuthCache = () => {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(PROFILE_CACHE_KEY);
+};
 
 interface AuthContextType {
   user: User | null;
@@ -52,12 +116,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const supabase = createClientComponentClient();
 
-  // Fetch user profile from database
+  // Fetch user profile from database with caching
   const fetchUserProfile = async (
-    userId: string
+    userId: string,
+    forceRefresh = false
   ): Promise<UserProfile | null> => {
     try {
-      console.log("🔍 AuthContext - Fetching user profile for:", userId);
+      console.log(
+        "🔍 AuthContext - Fetching user profile for:",
+        userId,
+        forceRefresh ? "(forced refresh)" : ""
+      );
+
+      // Check cache first unless force refresh is requested
+      if (!forceRefresh && typeof window !== "undefined") {
+        try {
+          const cachedProfile = localStorage.getItem(PROFILE_CACHE_KEY);
+          if (cachedProfile) {
+            const { profile, timestamp } = JSON.parse(cachedProfile);
+            const now = Date.now();
+
+            // Use cached profile if it's still fresh
+            if (
+              now - timestamp < PROFILE_CACHE_DURATION &&
+              profile.id === userId
+            ) {
+              console.log("✅ AuthContext - Using cached profile");
+              return { ...profile, _cachedAt: timestamp };
+            }
+          }
+        } catch (cacheError) {
+          console.warn("Error reading profile cache:", cacheError);
+        }
+      }
 
       const { data: profileData, error } = await supabase
         .from("profiles")
@@ -77,13 +168,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
 
+      const profile = profileData as UserProfile;
       console.log("✅ AuthContext - Profile fetched successfully:", {
-        userType: profileData.user_type,
-        onboardingCompleted: profileData.onboarding_completed,
-        email: profileData.email,
+        userType: profile.user_type,
+        onboardingCompleted: profile.onboarding_completed,
+        email: profile.email,
       });
 
-      return profileData as UserProfile;
+      // Cache the profile for future use
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            PROFILE_CACHE_KEY,
+            JSON.stringify({
+              profile,
+              timestamp: Date.now(),
+            })
+          );
+        } catch (cacheError) {
+          console.warn("Error caching profile:", cacheError);
+        }
+      }
+
+      return profile;
     } catch (error) {
       console.error("💥 AuthContext - Error in fetchUserProfile:", error);
       return null;
@@ -97,10 +204,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Get initial session and profile
+    // Get initial session and profile with caching
     const getInitialSession = async () => {
       console.log("🔐 AuthContext - Getting initial session");
 
+      // First, try to load from cache for instant UI
+      const cachedAuth = getAuthCache();
+      if (cachedAuth) {
+        console.log("⚡ AuthContext - Loading from cache for instant UI");
+        setSession(cachedAuth.session);
+        setUser(cachedAuth.user);
+        updateProfileState(cachedAuth.profile);
+        setLoading(false); // Set loading to false immediately with cached data
+      } else {
+        setLoading(true); // Only show loading if no cache
+      }
+
+      // Always fetch fresh data in background
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -108,14 +228,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
 
-      // If we have a user, fetch their profile
+      // If we have a user, fetch their profile (will use cache if available)
       if (session?.user) {
         console.log("👤 AuthContext - User authenticated, fetching profile");
         const userProfile = await fetchUserProfile(session.user.id);
         updateProfileState(userProfile);
+
+        // Update cache with fresh data
+        setAuthCache({
+          user: session.user,
+          session,
+          profile: userProfile,
+          userType: userProfile?.user_type || null,
+        });
       } else {
         console.log("👤 AuthContext - No authenticated user");
         updateProfileState(null);
+        clearAuthCache(); // Clear cache if no user
       }
 
       setLoading(false);
@@ -140,9 +269,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("👤 AuthContext - User authenticated, fetching profile");
         const userProfile = await fetchUserProfile(session.user.id);
         updateProfileState(userProfile);
+
+        // Update cache
+        setAuthCache({
+          user: session.user,
+          session,
+          profile: userProfile,
+          userType: userProfile?.user_type || null,
+        });
       } else {
         console.log("👤 AuthContext - User signed out, clearing profile");
         updateProfileState(null);
+        clearAuthCache(); // Clear cache on sign out
       }
 
       setLoading(false);
@@ -351,6 +489,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
 
+      // Clear all caches on signout
+      clearAuthCache();
+
       // Log successful signout
       logAuthSuccess(
         "signout",
@@ -361,12 +502,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
         {
           sessionEndedAt: new Date().toISOString(),
+          cacheCleared: true,
         }
       );
 
       console.log("✅ User signed out successfully", {
         userId: currentUserId,
         userType: currentUserType,
+        cacheCleared: true,
       });
     } catch (error: any) {
       // Enhanced error logging with categorization
@@ -457,8 +600,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = async () => {
     if (user?.id) {
       console.log("🔄 AuthContext - Refreshing profile for user:", user.id);
-      const userProfile = await fetchUserProfile(user.id);
+      const userProfile = await fetchUserProfile(user.id, true); // Force refresh
       updateProfileState(userProfile);
+
+      // Update cache with fresh data
+      setAuthCache({
+        user,
+        session,
+        profile: userProfile,
+        userType: userProfile?.user_type || null,
+      });
     }
   };
 
