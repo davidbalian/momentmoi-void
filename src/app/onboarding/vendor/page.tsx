@@ -210,7 +210,15 @@ export default function VendorOnboardingPage() {
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
+    if (!user) {
+      console.error("❌ No user found during onboarding submission");
+      alert("Authentication error. Please log in again.");
+      return;
+    }
+
+    console.log("🚀 Starting vendor onboarding submission...");
+    console.log("User ID:", user.id);
+    console.log("Form data:", formData);
 
     setSubmitting(true);
     try {
@@ -231,6 +239,7 @@ export default function VendorOnboardingPage() {
         // Continue without slug - it will use ID for routing
       }
 
+      console.log("📝 Creating vendor profile...");
       // Create vendor profile
       const { data: vendorProfile, error: profileError } = await supabase
         .from("vendor_profiles")
@@ -246,52 +255,135 @@ export default function VendorOnboardingPage() {
         .single();
 
       if (profileError) {
-        console.error("Error creating vendor profile:", profileError);
-        throw new Error("Failed to create vendor profile");
+        console.error("❌ Error creating vendor profile:", profileError);
+        console.error("Profile creation payload:", {
+          user_id: user.id,
+          business_name: formData.businessName,
+          slug,
+          description: formData.businessDescription,
+          business_category: formData.businessCategory,
+          event_types: formData.eventTypes,
+        });
+        throw new Error(
+          `Failed to create vendor profile: ${profileError.message}`
+        );
       }
 
+      console.log("✅ Vendor profile created successfully:", vendorProfile);
+
       // Add contact information
+      console.log("📞 Adding contact information...");
 
       // Add emails
+      let emailCount = 0;
       for (let i = 0; i < formData.emails.length; i++) {
         const email = formData.emails[i];
         if (email.trim() !== "") {
-          await supabase.from("vendor_contacts").insert({
-            vendor_id: vendorProfile.id,
-            contact_type: "email",
-            contact_value: email.trim(),
-            is_primary: i === 0,
-          });
+          const { error: emailError } = await supabase
+            .from("vendor_contacts")
+            .insert({
+              vendor_id: vendorProfile.id,
+              contact_type: "email",
+              contact_value: email.trim(),
+              is_primary: i === 0,
+            });
+          if (emailError) {
+            console.error("❌ Error adding email contact:", emailError);
+            throw new Error(
+              `Failed to add email contact: ${emailError.message}`
+            );
+          }
+          emailCount++;
         }
       }
 
       // Add phones
+      let phoneCount = 0;
       for (let i = 0; i < formData.phones.length; i++) {
         const phone = formData.phones[i];
         if (phone.trim() !== "") {
-          await supabase.from("vendor_contacts").insert({
-            vendor_id: vendorProfile.id,
-            contact_type: "phone",
-            contact_value: phone.trim(),
-            is_primary: i === 0,
-          });
+          const { error: phoneError } = await supabase
+            .from("vendor_contacts")
+            .insert({
+              vendor_id: vendorProfile.id,
+              contact_type: "phone",
+              contact_value: phone.trim(),
+              is_primary: i === 0,
+            });
+          if (phoneError) {
+            console.error("❌ Error adding phone contact:", phoneError);
+            throw new Error(
+              `Failed to add phone contact: ${phoneError.message}`
+            );
+          }
+          phoneCount++;
         }
       }
 
       // Add locations
+      let locationCount = 0;
       for (const location of formData.locations) {
-        await supabase.from("vendor_locations").insert({
-          vendor_id: vendorProfile.id,
-          location: location,
-        });
+        const { error: locationError } = await supabase
+          .from("vendor_locations")
+          .insert({
+            vendor_id: vendorProfile.id,
+            location: location,
+          });
+        if (locationError) {
+          console.error("❌ Error adding location:", locationError);
+          throw new Error(`Failed to add location: ${locationError.message}`);
+        }
+        locationCount++;
+      }
+
+      console.log(
+        `✅ Added ${emailCount} emails, ${phoneCount} phones, and ${locationCount} locations`
+      );
+
+      // Find the service category ID that matches the business category
+      const { data: serviceCategory, error: categoryError } = await supabase
+        .from("service_categories")
+        .select("id")
+        .eq("category", formData.businessCategory)
+        .single();
+
+      if (categoryError) {
+        console.error("Error finding service category:", categoryError);
+        console.error("Business category:", formData.businessCategory);
+        console.error("Available categories should include:", [
+          "cake",
+          "dress",
+          "florist",
+          "jeweller",
+          "music",
+          "photographer",
+          "transportation",
+          "venue",
+          "videographer",
+        ]);
+
+        // Try to fetch all available categories for debugging
+        const { data: allCategories } = await supabase
+          .from("service_categories")
+          .select("category, name");
+
+        console.error(
+          "Available service categories in database:",
+          allCategories
+        );
+
+        throw new Error(
+          `Failed to find service category for "${formData.businessCategory}". Make sure the database is seeded with service categories.`
+        );
       }
 
       // Create first service
+      console.log("🛠️ Creating first service...");
       const { error: serviceError } = await supabase
         .from("vendor_services")
         .insert({
           vendor_id: vendorProfile.id,
-          category_id: formData.businessCategory,
+          category_id: serviceCategory.id,
           name: formData.firstServiceName,
           description: formData.firstServiceDescription,
           pricing_model: formData.firstServicePricingModel,
@@ -300,20 +392,89 @@ export default function VendorOnboardingPage() {
         });
 
       if (serviceError) {
-        console.error("Error creating first service:", serviceError);
-        throw new Error("Failed to create first service");
+        console.error("❌ Error creating first service:", serviceError);
+        console.error("Service creation payload:", {
+          vendor_id: vendorProfile.id,
+          category_id: serviceCategory.id,
+          name: formData.firstServiceName,
+          description: formData.firstServiceDescription,
+          pricing_model: formData.firstServicePricingModel,
+          event_types: formData.eventTypes,
+          is_active: true,
+        });
+        throw new Error(
+          `Failed to create first service: ${serviceError.message}`
+        );
       }
 
+      console.log("✅ First service created successfully");
+
       // Update user profile to mark onboarding as complete
-      await supabase
+      console.log("📝 Updating user profile to mark onboarding as complete...");
+      const { error: profileUpdateError } = await supabase
         .from("profiles")
         .update({ onboarding_completed: true })
         .eq("id", user.id);
 
+      if (profileUpdateError) {
+        console.error("❌ Error updating user profile:", profileUpdateError);
+        throw new Error(
+          `Failed to update user profile: ${profileUpdateError.message}`
+        );
+      }
+
+      console.log("✅ User profile updated successfully");
+
+      console.log("🎉 Vendor onboarding completed successfully!");
+      console.log(
+        "🔄 Verifying profile creation and redirecting to dashboard..."
+      );
+
+      // Verify the vendor profile was created successfully before redirecting
+      const { data: verifyProfile, error: verifyError } = await supabase
+        .from("vendor_profiles")
+        .select("id, business_name")
+        .eq("user_id", user.id)
+        .single();
+
+      if (verifyError || !verifyProfile) {
+        console.error("❌ Profile verification failed:", verifyError);
+        throw new Error(
+          "Profile creation could not be verified. Please try again."
+        );
+      }
+
+      console.log("✅ Profile verified successfully:", verifyProfile);
+
+      // Add a small delay to ensure database consistency
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       router.push("/dashboard/services?created=true");
     } catch (error) {
-      console.error("Error in vendor onboarding:", error);
-      alert("Failed to complete onboarding. Please try again.");
+      console.error("❌ Error in vendor onboarding:", error);
+
+      // Show more specific error message to user
+      let errorMessage = "Failed to complete onboarding. Please try again.";
+
+      if (error instanceof Error) {
+        // Use the specific error message if available
+        if (error.message.includes("service category")) {
+          errorMessage =
+            "Database configuration issue. Please contact support.";
+        } else if (error.message.includes("vendor profile")) {
+          errorMessage =
+            "Failed to create your business profile. Please try again.";
+        } else if (error.message.includes("contact")) {
+          errorMessage =
+            "Failed to save contact information. Please try again.";
+        } else if (error.message.includes("service")) {
+          errorMessage = "Failed to create your service. Please try again.";
+        } else if (error.message.includes("profile")) {
+          errorMessage = "Failed to update your profile. Please try again.";
+        }
+      }
+
+      alert(errorMessage);
     } finally {
       setSubmitting(false);
     }

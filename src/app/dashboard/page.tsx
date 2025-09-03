@@ -83,7 +83,6 @@ export default function DashboardPage() {
 
         console.log("Profile data:", profile);
         console.log("Profile error:", error);
-        console.log("Profile error details:", JSON.stringify(error, null, 2));
 
         // If profile doesn't exist, create it
         if (error && error.code === "PGRST116") {
@@ -105,10 +104,6 @@ export default function DashboardPage() {
 
             if (createError) {
               console.error("Error creating profile:", createError);
-              console.error(
-                "Error details:",
-                JSON.stringify(createError, null, 2)
-              );
 
               // Check if profile was actually created despite the error
               const { data: checkProfile } = await supabase
@@ -167,7 +162,7 @@ export default function DashboardPage() {
     };
 
     checkOnboarding();
-  }, [user, authLoading, router]);
+  }, [user, authLoading]); // Removed router from dependencies to prevent infinite loop
 
   if (authLoading || dataLoading) {
     return (
@@ -189,7 +184,7 @@ export default function DashboardPage() {
     if (userType === "vendor") {
       return dashboardData?.businessName || "Your Business";
     } else if (userType === "planner") {
-      return dashboardData?.eventName || "Your Event";
+      return user.user_metadata?.full_name || "Planner";
     } else {
       return user.user_metadata?.full_name || "Welcome";
     }
@@ -208,110 +203,114 @@ export default function DashboardPage() {
 
   const errorType = getErrorType();
 
-  // Render vendor dashboard
-  if (userType === "vendor") {
-    return (
-      <ErrorBoundary fallback={ErrorFallback}>
-        <DashboardLayout>
-          <div className="space-y-6 max-w-8xl mx-auto">
-            {/* Welcome Header with Refresh Button */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-light text-gray-900">
-                    Welcome back, {getDisplayName()}! 👋
-                  </h1>
-                  <p className="text-gray-600">
-                    Here's what's happening with your business today
+  // Render unified dashboard for all users using ClientDashboardLayout
+  return (
+    <ErrorBoundary fallback={ErrorFallback}>
+      <ClientDashboardLayout>
+        <div className="space-y-6 max-w-8xl mx-auto">
+          {/* Welcome Header with Refresh Button */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="font-light text-gray-900">
+                  Welcome back, {getDisplayName()}! 👋
+                </h1>
+                <p className="text-gray-600">
+                  {userType === "vendor"
+                    ? "Here's what's happening with your business today"
+                    : userType === "planner"
+                    ? "Here's your event planning progress"
+                    : "Discover amazing vendors for your special day"}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isRefreshing || dataLoading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+                {isRefreshing ? "Refreshing..." : "Refresh"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Enhanced Error Display */}
+          {error && (
+            <div
+              className={`border rounded-lg p-4 ${
+                errorType === "network"
+                  ? "bg-orange-50 border-orange-200"
+                  : errorType === "auth"
+                  ? "bg-red-50 border-red-200"
+                  : "bg-blue-50 border-blue-200"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {errorType === "network" ? (
+                  <AlertTriangle className="w-5 h-5 text-orange-600" />
+                ) : errorType === "auth" ? (
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-blue-600" />
+                )}
+                <div className="flex-1">
+                  <p
+                    className={`font-medium ${
+                      errorType === "network"
+                        ? "text-orange-800"
+                        : errorType === "auth"
+                        ? "text-red-800"
+                        : "text-blue-800"
+                    }`}
+                  >
+                    {errorType === "network"
+                      ? "Connection Issue"
+                      : errorType === "auth"
+                      ? "Authentication Error"
+                      : "Data Loading Issue"}
+                  </p>
+                  <p
+                    className={`text-sm ${
+                      errorType === "network"
+                        ? "text-orange-700"
+                        : errorType === "auth"
+                        ? "text-red-700"
+                        : "text-blue-700"
+                    }`}
+                  >
+                    {error}
                   </p>
                 </div>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={handleRefresh}
-                  disabled={isRefreshing || dataLoading}
-                  className="flex items-center gap-2"
+                  disabled={isRefreshing}
+                  className={`${
+                    errorType === "network"
+                      ? "text-orange-700 hover:text-orange-800"
+                      : errorType === "auth"
+                      ? "text-red-700 hover:text-red-800"
+                      : "text-blue-700 hover:text-blue-800"
+                  }`}
                 >
-                  <RefreshCw
-                    className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
-                  />
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
+                  Retry
                 </Button>
               </div>
             </div>
+          )}
 
-            {/* Enhanced Error Display */}
-            {error && (
-              <div
-                className={`border rounded-lg p-4 ${
-                  errorType === "network"
-                    ? "bg-orange-50 border-orange-200"
-                    : errorType === "auth"
-                    ? "bg-red-50 border-red-200"
-                    : "bg-blue-50 border-blue-200"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {errorType === "network" ? (
-                    <AlertTriangle className="w-5 h-5 text-orange-600" />
-                  ) : errorType === "auth" ? (
-                    <AlertCircle className="w-5 h-5 text-red-600" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5 text-blue-600" />
-                  )}
-                  <div className="flex-1">
-                    <p
-                      className={`font-medium ${
-                        errorType === "network"
-                          ? "text-orange-800"
-                          : errorType === "auth"
-                          ? "text-red-800"
-                          : "text-blue-800"
-                      }`}
-                    >
-                      {errorType === "network"
-                        ? "Connection Issue"
-                        : errorType === "auth"
-                        ? "Authentication Error"
-                        : "Data Loading Issue"}
-                    </p>
-                    <p
-                      className={`text-sm ${
-                        errorType === "network"
-                          ? "text-orange-700"
-                          : errorType === "auth"
-                          ? "text-red-700"
-                          : "text-blue-700"
-                      }`}
-                    >
-                      {error}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                    className={`${
-                      errorType === "network"
-                        ? "text-orange-700 hover:text-orange-800"
-                        : errorType === "auth"
-                        ? "text-red-700 hover:text-red-800"
-                        : "text-blue-700 hover:text-blue-800"
-                    }`}
-                  >
-                    Retry
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Dynamic Stats Grid based on user type */}
+          {userType === "vendor" && (
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-6">
               <StatsCard
                 title="Total Inquiries"
                 value={dashboardData?.vendorStats?.totalInquiries || 0}
-                icon={<MessageSquare className="w-5 h-5 text-blue-600" />}
+                icon={<MessageSquare className="w-6 h-6 text-blue-600" />}
                 loading={dataLoading}
                 error={error}
               />
@@ -319,7 +318,7 @@ export default function DashboardPage() {
               <StatsCard
                 title="Total Bookings"
                 value={dashboardData?.vendorStats?.totalBookings || 0}
-                icon={<CheckCircle className="w-5 h-5 text-green-600" />}
+                icon={<CheckCircle className="w-6 h-6 text-green-600" />}
                 loading={dataLoading}
                 error={error}
               />
@@ -327,7 +326,7 @@ export default function DashboardPage() {
               <StatsCard
                 title="Profile Views"
                 value={dashboardData?.vendorStats?.profileViews || 0}
-                icon={<Eye className="w-5 h-5 text-purple-600" />}
+                icon={<Eye className="w-6 h-6 text-purple-600" />}
                 loading={dataLoading}
                 error={error}
               />
@@ -335,15 +334,111 @@ export default function DashboardPage() {
               <StatsCard
                 title="Response Rate"
                 value={`${dashboardData?.vendorStats?.responseRate || 0}%`}
-                icon={<TrendingUp className="w-5 h-5 text-orange-600" />}
+                icon={<TrendingUp className="w-6 h-6 text-orange-600" />}
                 loading={dataLoading}
                 error={error}
               />
             </div>
+          )}
 
-            {/* Quick Actions & Recent Activity */}
+          {userType === "planner" && dashboardData?.eventData && (
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-6">
+              <StatsCard
+                title="Days Until Event"
+                value={dashboardData.eventData.stats?.daysUntilEvent || 0}
+                icon={<Clock className="w-6 h-6 text-blue-600" />}
+                loading={dataLoading}
+                error={error}
+              />
+
+              <StatsCard
+                title="Total Guests"
+                value={dashboardData.eventData.stats?.totalGuests || 0}
+                icon={<Users className="w-6 h-6 text-green-600" />}
+                loading={dataLoading}
+                error={error}
+              />
+
+              <StatsCard
+                title="Budget Spent"
+                value={`€${dashboardData.eventData.stats?.spentBudget || 0}`}
+                icon={<DollarSign className="w-6 h-6 text-purple-600" />}
+                loading={dataLoading}
+                error={error}
+              />
+
+              <StatsCard
+                title="Tasks Completed"
+                value={`${dashboardData.eventData.stats?.completedTasks || 0}/${
+                  dashboardData.eventData.stats?.totalTasks || 0
+                }`}
+                icon={<CheckCircle className="w-6 h-6 text-orange-600" />}
+                loading={dataLoading}
+                error={error}
+              />
+            </div>
+          )}
+
+          {userType === "viewer" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Get Started</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() => router.push("/dashboard/vendors")}
+                    >
+                      <Building2 className="w-4 h-4" />
+                      Browse Vendors
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() =>
+                        router.push("/dashboard/vendors/favorites")
+                      }
+                    >
+                      <Heart className="w-4 h-4" />
+                      Saved Vendors
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      onClick={() => router.push("/dashboard/profile")}
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Set Preferences
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Performance Metrics - Only for vendors */}
+          {userType === "vendor" && (
+            <PerformanceMetrics
+              avgResponseTime={
+                dashboardData?.vendorStats?.avgResponseTime || "N/A"
+              }
+              pendingInquiries={
+                dashboardData?.vendorStats?.pendingInquiries || 0
+              }
+              monthlyGrowth={dashboardData?.monthlyGrowth || 0}
+              profileCompletion={dashboardData?.profileCompletion || 0}
+              loading={dataLoading}
+              error={error}
+            />
+          )}
+
+          {/* User-specific Content */}
+          {userType === "vendor" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Quick Actions */}
+              {/* Quick Actions for Vendors */}
               <div className="lg:col-span-1 space-y-4">
                 <Card>
                   <CardHeader>
@@ -386,23 +481,9 @@ export default function DashboardPage() {
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Performance Metrics */}
-                <PerformanceMetrics
-                  avgResponseTime={
-                    dashboardData?.vendorStats?.avgResponseTime || "N/A"
-                  }
-                  pendingInquiries={
-                    dashboardData?.vendorStats?.pendingInquiries || 0
-                  }
-                  monthlyGrowth={dashboardData?.monthlyGrowth || 0}
-                  profileCompletion={dashboardData?.profileCompletion || 0}
-                  loading={dataLoading}
-                  error={error}
-                />
               </div>
 
-              {/* Recent Inquiries */}
+              {/* Recent Inquiries for Vendors */}
               <div className="lg:col-span-2">
                 <RecentInquiries
                   inquiries={dashboardData?.recentInquiries || []}
@@ -411,294 +492,81 @@ export default function DashboardPage() {
                 />
               </div>
             </div>
+          )}
 
-            {/* Upcoming Events */}
-            <UpcomingEvents
-              events={dashboardData?.upcomingEvents || []}
-              loading={dataLoading}
-              error={error}
-              dashboardError={null}
-            />
-          </div>
-        </DashboardLayout>
-      </ErrorBoundary>
-    );
-  }
-
-  // Render planner dashboard
-  if (userType === "planner") {
-    const eventData = dashboardData?.eventData;
-
-    return (
-      <ErrorBoundary fallback={ErrorFallback}>
-        <ClientDashboardLayout>
-          <div className="space-y-6 max-w-8xl mx-auto">
-            {/* Welcome Header */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-light text-gray-900">
-                    Welcome back! 👋
-                  </h1>
-                  <p className="text-gray-600">
-                    Here's your event planning progress
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing || dataLoading}
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw
-                    className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
-                  />
-                  {isRefreshing ? "Refreshing..." : "Refresh"}
-                </Button>
-              </div>
-            </div>
-
-            {/* Error Display */}
-            {error && (
-              <div className="border border-red-200 rounded-lg p-4 bg-red-50">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-red-600" />
-                  <div className="flex-1">
-                    <p className="font-medium text-red-800">
-                      Data Loading Issue
-                    </p>
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                    className="text-red-700 hover:text-red-800"
-                  >
-                    Retry
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Event Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatsCard
-                title="Days Until Event"
-                value={eventData?.stats?.daysUntilEvent || 0}
-                icon={<Clock className="w-5 h-5 text-blue-600" />}
-                loading={dataLoading}
-                error={error}
-              />
-
-              <StatsCard
-                title="Total Guests"
-                value={eventData?.stats?.totalGuests || 0}
-                icon={<Users className="w-5 h-5 text-green-600" />}
-                loading={dataLoading}
-                error={error}
-              />
-
-              <StatsCard
-                title="Confirmed Guests"
-                value={eventData?.stats?.confirmedGuests || 0}
-                icon={<CheckCircle className="w-5 h-5 text-purple-600" />}
-                loading={dataLoading}
-                error={error}
-              />
-
-              <StatsCard
-                title="Budget Spent"
-                value={`$${eventData?.stats?.spentBudget || 0}`}
-                icon={<DollarSign className="w-5 h-5 text-orange-600" />}
-                loading={dataLoading}
-                error={error}
-              />
-            </div>
-
-            {/* Quick Actions & Event Info */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Quick Actions */}
-              <div className="lg:col-span-1 space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Quick Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start gap-2"
-                        onClick={() => router.push("/dashboard/client/guests")}
-                      >
-                        <Users className="w-4 h-4" />
-                        Manage Guests
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start gap-2"
-                        onClick={() =>
-                          router.push("/dashboard/client/checklist")
-                        }
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        View Checklist
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start gap-2"
-                        onClick={() => router.push("/dashboard/client/budget")}
-                      >
-                        <DollarSign className="w-4 h-4" />
-                        Track Budget
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start gap-2"
-                        onClick={() => router.push("/dashboard/client/vendors")}
-                      >
-                        <Building2 className="w-4 h-4" />
-                        Find Vendors
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Event Information */}
-              <div className="lg:col-span-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Event Information</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {dataLoading ? (
-                      <div className="space-y-4">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                        <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-                        <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
-                      </div>
-                    ) : eventData?.event ? (
-                      <div className="space-y-4">
+          {userType === "planner" && dashboardData?.eventData && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Event Overview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event Overview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {dashboardData.eventData.event ? (
+                      <div className="space-y-2">
                         <div>
-                          <h3 className="font-medium text-gray-900">
-                            {eventData.event.event_type} Event
-                          </h3>
+                          <h4 className="font-medium text-gray-700">
+                            Event Type
+                          </h4>
                           <p className="text-gray-600">
-                            {eventData.event.event_date
-                              ? new Date(
-                                  eventData.event.event_date
-                                ).toLocaleDateString()
-                              : "Date TBD"}
+                            {dashboardData.eventData.event.event_type}
                           </p>
                         </div>
-                        {eventData.event.location && (
-                          <div>
-                            <h4 className="font-medium text-gray-700">
-                              Location
-                            </h4>
-                            <p className="text-gray-600">
-                              {eventData.event.location}
-                            </p>
-                          </div>
-                        )}
-                        {eventData.event.guest_count && (
-                          <div>
-                            <h4 className="font-medium text-gray-700">
-                              Guest Count
-                            </h4>
-                            <p className="text-gray-600">
-                              {eventData.event.guest_count}
-                            </p>
-                          </div>
-                        )}
+                        <div>
+                          <h4 className="font-medium text-gray-700">
+                            Event Date
+                          </h4>
+                          <p className="text-gray-600">
+                            {new Date(
+                              dashboardData.eventData.event.event_date
+                            ).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-700">Venue</h4>
+                          <p className="text-gray-600">
+                            {dashboardData.eventData.event.venue || "Not set"}
+                          </p>
+                        </div>
                       </div>
                     ) : (
                       <p className="text-gray-500">
                         No event information available
                       </p>
                     )}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </div>
-        </ClientDashboardLayout>
-      </ErrorBoundary>
-    );
-  }
+                  </div>
+                </CardContent>
+              </Card>
 
-  // Render viewer dashboard
-  if (userType === "viewer") {
-    return (
-      <ErrorBoundary fallback={ErrorFallback}>
-        <ClientDashboardLayout>
-          <div className="space-y-6 max-w-8xl mx-auto">
-            {/* Welcome Header */}
-            <div className="space-y-2">
-              <div>
-                <h1 className="text-3xl font-light text-gray-900">
-                  Welcome to MomentMoi! 👋
-                </h1>
-                <p className="text-gray-600">
-                  Discover amazing vendors for your special day
-                </p>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Recent Activity */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Get Started</CardTitle>
+                  <CardTitle>Recent Activity</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      onClick={() => router.push("/dashboard/client/vendors")}
-                    >
-                      <Building2 className="w-4 h-4" />
-                      Browse Vendors
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      onClick={() => router.push("/dashboard/client/profile")}
-                    >
-                      <Heart className="w-4 h-4" />
-                      Saved Vendors
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      onClick={() => router.push("/dashboard/client/profile")}
-                    >
-                      <MapPin className="w-4 h-4" />
-                      Set Location
-                    </Button>
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">
+                      Activity tracking coming soon
+                    </p>
                   </div>
                 </CardContent>
               </Card>
             </div>
-          </div>
-        </ClientDashboardLayout>
-      </ErrorBoundary>
-    );
-  }
+          )}
 
-  // Loading state while determining user type
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
-        <p className="text-body text-text-secondary">
-          Loading your dashboard...
-        </p>
-      </div>
-    </div>
+          {/* Upcoming Events - Show for all users who have events */}
+          {(userType === "vendor" ||
+            (userType === "planner" && dashboardData?.eventData)) && (
+            <UpcomingEvents
+              events={dashboardData?.upcomingEvents || []}
+              loading={dataLoading}
+              error={error}
+              dashboardError={null}
+            />
+          )}
+        </div>
+      </ClientDashboardLayout>
+    </ErrorBoundary>
   );
 }

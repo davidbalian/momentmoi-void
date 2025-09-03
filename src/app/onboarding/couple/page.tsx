@@ -75,7 +75,6 @@ export default function PlannerOnboardingPage() {
     // Test database fields when component mounts
     if (!loading && user) {
       testCoupleFields().then((result) => {
-        console.log("Database fields test result:", result);
         if (!result.fieldsExist) {
           setError(
             "Database fields not found. Please run the migration: database-couple-onboarding-fields.sql"
@@ -128,13 +127,9 @@ export default function PlannerOnboardingPage() {
     setSubmitting(true);
     setError(null);
 
-    console.log("Submitting form data:", formData);
-
     try {
       const { createClientComponentClient } = await import("@/lib/supabase");
       const supabase = createClientComponentClient();
-
-      console.log("Creating/updating couple profile for user:", user.id);
 
       // First, try to get existing couple profile
       let { data: existingProfile, error: fetchError } = await supabase
@@ -145,7 +140,6 @@ export default function PlannerOnboardingPage() {
 
       if (fetchError && fetchError.code !== "PGRST116") {
         // PGRST116 is "not found"
-        console.error("Error fetching couple profile:", fetchError);
         setError(`Failed to fetch profile: ${fetchError.message}`);
         return;
       }
@@ -165,7 +159,6 @@ export default function PlannerOnboardingPage() {
           .single();
 
         if (updateError) {
-          console.error("Error updating couple profile:", updateError);
           setError(`Failed to save partner details: ${updateError.message}`);
           return;
         }
@@ -184,18 +177,12 @@ export default function PlannerOnboardingPage() {
           .single();
 
         if (insertError) {
-          console.error("Error creating couple profile:", insertError);
           setError(`Failed to save partner details: ${insertError.message}`);
           return;
         }
 
         coupleProfileData = insertData;
       }
-
-      console.log(
-        "Couple profile created/updated successfully:",
-        coupleProfileData
-      );
 
       // Create the event using the user's profile ID as planner_id
       const { data: eventData, error: eventError } = await supabase
@@ -213,12 +200,9 @@ export default function PlannerOnboardingPage() {
         .select();
 
       if (eventError) {
-        console.error("Error creating event:", eventError);
         setError(`Failed to create event: ${eventError.message}`);
         return;
       }
-
-      console.log("Event created successfully:", eventData);
 
       // Mark onboarding as completed
       const { data: profileData, error: profileError } = await supabase
@@ -228,30 +212,20 @@ export default function PlannerOnboardingPage() {
         .select();
 
       if (profileError) {
-        console.error("Error updating profile:", profileError);
         setError(`Failed to complete onboarding: ${profileError.message}`);
         return;
       }
 
-      console.log("Profile updated successfully:", profileData);
-
       // TODO: Send partner invitation email if partner email provided
       if (formData.partnerEmail) {
         // Implement partner invitation logic
-        console.log(
-          "Partner invitation would be sent to:",
-          formData.partnerEmail
-        );
       }
-
-      console.log("Planner onboarding completed, redirecting to dashboard");
 
       // Add a small delay to ensure the user sees the success state
       setTimeout(() => {
         router.push("/dashboard");
       }, 1000);
     } catch (error) {
-      console.error("Error during planner onboarding:", error);
       setError("An unexpected error occurred. Please try again.");
     } finally {
       setSubmitting(false);
@@ -648,20 +622,6 @@ export default function PlannerOnboardingPage() {
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
                 <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
-
-            {/* Debug info - remove in production */}
-            {process.env.NODE_ENV === "development" && (
-              <div className="bg-gray-50 border border-gray-200 rounded-md p-4 text-xs">
-                <p className="font-medium mb-2">Debug Info:</p>
-                <p>Current Step: {currentStep}</p>
-                <p>Form Valid: {isStepValid() ? "Yes" : "No"}</p>
-                <p>Partner Name: {formData.partnerName || "Not set"}</p>
-                <p>Event Type: {formData.eventType || "Not set"}</p>
-                <p>Event Date: {formData.eventDate || "Not set"}</p>
-                <p>Event Location: {formData.eventLocation || "Not set"}</p>
-                <p>Guest Count: {formData.guestCount || "Not set"}</p>
               </div>
             )}
 

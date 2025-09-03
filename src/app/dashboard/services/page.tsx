@@ -14,6 +14,7 @@ import {
   Button,
   Icon,
 } from "@/components/ui";
+import { StatsCard } from "@/components/features/dashboard";
 import {
   Plus,
   Edit,
@@ -386,7 +387,7 @@ export default function ServicesPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-display text-3xl font-light text-text-primary">
+            <h1 className="text-display font-light text-text-primary">
               Services
             </h1>
             <p className="text-body text-text-secondary mt-2">
@@ -405,7 +406,7 @@ export default function ServicesPage() {
         {/* Success Message */}
         {successMessage && (
           <Card variant="elevated" className="border-green-200 bg-green-50">
-            <CardContent className="p-4">
+            <CardContent className="p-3">
               <div className="flex items-center gap-3">
                 <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                   <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -425,76 +426,46 @@ export default function ServicesPage() {
         )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Total Services</p>
-                  <p className="text-2xl font-semibold text-text-primary">
-                    {stats.total}
-                  </p>
-                </div>
-                <Package className="w-8 h-8 text-primary-500" />
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-6">
+          <StatsCard
+            title="Total Services"
+            value={stats.total}
+            icon={<Package className="w-6 h-6 text-primary-500" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Active</p>
-                  <p className="text-2xl font-semibold text-green-600">
-                    {stats.active}
-                  </p>
-                </div>
-                <Eye className="w-8 h-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Active Services"
+            value={stats.active}
+            icon={<Eye className="w-6 h-6 text-green-600" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Inactive</p>
-                  <p className="text-2xl font-semibold text-text-secondary">
-                    {stats.inactive}
-                  </p>
-                </div>
-                <EyeOff className="w-8 h-8 text-text-secondary" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Inactive Services"
+            value={stats.inactive}
+            icon={<EyeOff className="w-6 h-6 text-gray-600" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Total Views</p>
-                  <p className="text-2xl font-semibold text-text-primary">
-                    {stats.totalViews}
-                  </p>
-                </div>
-                <Eye className="w-8 h-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Total Views"
+            value={stats.totalViews}
+            icon={<Eye className="w-6 h-6 text-blue-600" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Inquiries</p>
-                  <p className="text-2xl font-semibold text-text-primary">
-                    {stats.totalInquiries}
-                  </p>
-                </div>
-                <Calendar className="w-8 h-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Total Inquiries"
+            value={stats.totalInquiries}
+            icon={<Calendar className="w-6 h-6 text-orange-600" />}
+            loading={loading}
+            error={error}
+          />
         </div>
 
         {/* Filters and Search */}

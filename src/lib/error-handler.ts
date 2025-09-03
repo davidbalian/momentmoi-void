@@ -354,3 +354,199 @@ export const DASHBOARD_ERROR_MESSAGES = {
   CACHE_LOAD_FAILED: 'Unable to load cached data',
   VENDOR_ID_FETCH_FAILED: 'Unable to load vendor information'
 } as const;
+
+// Auth-specific error handling
+export interface AuthError extends DashboardError {
+  authAction: 'signup' | 'signin' | 'signout' | 'reset_password' | 'session_refresh';
+  userData?: {
+    email?: string;
+    userType?: string;
+    userId?: string;
+  };
+}
+
+export function categorizeAuthError(error: any, authAction: AuthError['authAction'], userData?: AuthError['userData']): AuthError {
+  const baseError = categorizeError(error);
+
+  // Specific auth error handling
+  let userMessage = baseError.userMessage;
+
+  // Customize messages for specific auth scenarios
+  switch (authAction) {
+    case 'signup':
+      if (error?.message?.includes('User already registered')) {
+        userMessage = 'An account with this email already exists. Please try logging in instead.';
+      } else if (error?.message?.includes('Password should be at least')) {
+        userMessage = 'Password must be at least 6 characters long and contain a mix of letters and numbers.';
+      } else if (error?.message?.includes('Invalid email')) {
+        userMessage = 'Please enter a valid email address.';
+      }
+      break;
+
+    case 'signin':
+      if (error?.message?.includes('Invalid login credentials')) {
+        userMessage = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (error?.message?.includes('Email not confirmed')) {
+        userMessage = 'Please check your email and click the confirmation link before logging in.';
+      }
+      break;
+
+    case 'reset_password':
+      if (error?.message?.includes('User not found')) {
+        userMessage = 'No account found with this email address.';
+      }
+      break;
+  }
+
+  return {
+    ...baseError,
+    userMessage,
+    authAction,
+    userData
+  };
+}
+
+export function logAuthError(error: AuthError, additionalContext?: Record<string, any>) {
+  const logData = {
+    ...error,
+    timestamp: new Date().toISOString(),
+    userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server',
+    url: typeof window !== 'undefined' ? window.location.href : 'unknown',
+    additionalContext: additionalContext || {},
+    environment: process.env.NODE_ENV,
+    version: process.env.NEXT_PUBLIC_APP_VERSION || 'unknown'
+  };
+
+  // Console logging with structured format
+  if (process.env.NODE_ENV === 'development') {
+    console.group(`🔐 Auth Error: ${error.authAction.toUpperCase()}`);
+    console.error('Error Details:', {
+      type: error.type,
+      message: error.message,
+      code: error.code,
+      userMessage: error.userMessage,
+      userData: error.userData,
+      retryable: error.retryable
+    });
+    console.error('Context:', logData.additionalContext);
+    console.error('Stack:', error.details);
+    console.groupEnd();
+  }
+
+  // Production error logging
+  if (process.env.NODE_ENV === 'production') {
+    // TODO: Send to error tracking service (Sentry, LogRocket, etc.)
+    console.error('AUTH_ERROR:', JSON.stringify({
+      timestamp: logData.timestamp,
+      action: error.authAction,
+      type: error.type,
+      message: error.message,
+      userMessage: error.userMessage,
+      code: error.code,
+      email: error.userData?.email ? error.userData.email.split('@')[0] + '@***' : undefined,
+      userType: error.userData?.userType,
+      userId: error.userData?.userId,
+      url: logData.url,
+      additionalContext: sanitizeAuthContext(additionalContext)
+    }, null, 2));
+  }
+
+  // Also log to general error handler
+  logError(error);
+}
+
+// Sanitize sensitive auth context data
+function sanitizeAuthContext(context?: Record<string, any>): Record<string, any> {
+  if (!context) return {};
+
+  const sanitized = { ...context };
+  const sensitiveKeys = ['password', 'token', 'key', 'secret', 'authorization'];
+
+  for (const key of Object.keys(sanitized)) {
+    if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
+      sanitized[key] = '[REDACTED]';
+    } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+      sanitized[key] = sanitizeAuthContext(sanitized[key]);
+    }
+  }
+
+  return sanitized;
+}
+
+// Auth operation success logging
+export function logAuthSuccess(authAction: AuthError['authAction'], userData?: AuthError['userData'], additionalContext?: Record<string, any>) {
+  const logData = {
+    timestamp: new Date().toISOString(),
+    action: authAction,
+    success: true,
+    userData: {
+      ...userData,
+      email: userData?.email ? userData.email.split('@')[0] + '@***' : undefined
+    },
+    additionalContext: sanitizeAuthContext(additionalContext),
+    userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server',
+    url: typeof window !== 'undefined' ? window.location.href : 'unknown'
+  };
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`✅ Auth Success: ${authAction.toUpperCase()}`, logData);
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    console.log('AUTH_SUCCESS:', JSON.stringify(logData, null, 2));
+  }
+}
+
+// Auth retry mechanism with enhanced logging
+export async function retryAuthOperation<T>(
+  operation: () => Promise<T>,
+  authAction: AuthError['authAction'],
+  userData?: AuthError['userData'],
+  maxRetries: number = 2,
+  delay: number = 1000
+): Promise<T> {
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await operation();
+
+      // Log successful retry
+      if (attempt > 1) {
+        logAuthSuccess(authAction, userData, {
+          retryAttempt: attempt,
+          totalAttempts: maxRetries,
+          finalDelay: delay * (attempt - 1)
+        });
+      }
+
+      return result;
+    } catch (error) {
+      lastError = error;
+
+      const authError = categorizeAuthError(error, authAction, userData);
+      logAuthError(authError, {
+        retryAttempt: attempt,
+        maxRetries,
+        willRetry: attempt < maxRetries,
+        delay: delay * attempt
+      });
+
+      if (attempt === maxRetries) {
+        break;
+      }
+
+      // Wait before retrying with exponential backoff
+      await new Promise(resolve => setTimeout(resolve, delay * attempt));
+    }
+  }
+
+  // Log final failure
+  const finalError = categorizeAuthError(lastError, authAction, userData);
+  logAuthError(finalError, {
+    totalAttempts: maxRetries,
+    finalFailure: true
+  });
+
+  throw new Error(finalError.userMessage);
+}

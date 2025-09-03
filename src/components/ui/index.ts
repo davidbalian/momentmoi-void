@@ -48,3 +48,5 @@ export {
   SkeletonQuickActions,
   SkeletonUserProfile
 } from './Skeleton';
+
+export { AuthErrorBoundary, withAuthErrorBoundary } from './AuthErrorBoundary';

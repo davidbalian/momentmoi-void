@@ -334,7 +334,7 @@ export default function VendorDetailClient({
             <p className="text-text-secondary mb-4">
               The vendor you're looking for doesn't exist or has been removed.
             </p>
-            <Link href="/dashboard/client/vendors">
+            <Link href="/dashboard/vendors">
               <Button variant="outline">Browse Vendors</Button>
             </Link>
           </div>

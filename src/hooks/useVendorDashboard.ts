@@ -116,8 +116,8 @@ export function useVendorDashboard() {
     return Date.now() - cache.timestamp < CACHE_DURATION;
   }, [cache.timestamp]);
 
-  // Get vendor profile ID with error handling
-  const getVendorId = async () => {
+  // Get vendor profile ID with error handling and retry logic
+  const getVendorId = useCallback(async () => {
     if (!user?.id) {
       console.log("No user ID available for vendor profile lookup");
       return null;
@@ -125,70 +125,103 @@ export function useVendorDashboard() {
 
     const context = createErrorContext('useVendorDashboard', 'getVendorId', user.id);
 
-    try {
-      // First check if user has a profile and is a vendor
-      const { data: userProfile, error: userProfileError } = await supabase
-        .from("profiles")
-        .select("user_type")
-        .eq("id", user.id)
-        .single();
+    // Retry logic for vendor profile lookup
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
 
-      if (userProfileError) {
-        console.error("Error getting user profile:", {
-          error: userProfileError,
-          userId: user.id,
-          context: context
-        });
-        return null;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Attempting to get vendor ID (attempt ${attempt}/${maxRetries})`);
+
+        // First check if user has a profile and is a vendor
+        const { data: userProfile, error: userProfileError } = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", user.id)
+          .single();
+
+        if (userProfileError) {
+          console.error("Error getting user profile:", {
+            error: userProfileError,
+            userId: user.id,
+            context: context,
+            attempt
+          });
+
+          // If it's the last attempt, return null
+          if (attempt === maxRetries) return null;
+
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+
+        if (!userProfile) {
+          console.error("No user profile found for user:", user.id);
+          return null;
+        }
+
+        if (userProfile.user_type !== 'vendor') {
+          console.log("User is not a vendor, user_type:", userProfile.user_type);
+          return null;
+        }
+
+        // Now get the vendor profile with better error handling
+        const { data: vendorProfile, error: profileError } = await supabase
+          .from("vendor_profiles")
+          .select("id")
+          .eq("user_id", user.id)
+          .single();
+
+        if (profileError) {
+          // Check if this is a "not found" error that might resolve with retry
+          if (profileError.code === 'PGRST116' && attempt < maxRetries) {
+            console.log(`Vendor profile not found, retrying in ${retryDelay}ms (attempt ${attempt}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            continue;
+          }
+
+          const dashboardError = handleSupabaseError(profileError, context);
+          console.error("Error getting vendor ID:", {
+            error: profileError,
+            dashboardError: dashboardError,
+            userId: user.id,
+            userType: userProfile.user_type,
+            context: context,
+            attempt
+          });
+          return null;
+        }
+
+        if (!vendorProfile) {
+          console.log("No vendor profile found for user:", user.id);
+          return null;
+        }
+
+        console.log("Successfully found vendor profile:", vendorProfile.id);
+        return vendorProfile.id;
+      } catch (err) {
+        console.error(`Error in getVendorId attempt ${attempt}:`, err);
+
+        // If it's the last attempt, handle the error
+        if (attempt === maxRetries) {
+          const dashboardError = handleSupabaseError(err, context);
+          console.error("Error getting vendor ID after all retries:", {
+            error: err,
+            dashboardError: dashboardError,
+            userId: user.id,
+            context: context
+          });
+          return null;
+        }
+
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
-
-      if (!userProfile) {
-        console.error("No user profile found for user:", user.id);
-        return null;
-      }
-
-      if (userProfile.user_type !== 'vendor') {
-        console.log("User is not a vendor, user_type:", userProfile.user_type);
-        return null;
-      }
-
-      // Now get the vendor profile
-      const { data: vendorProfile, error: profileError } = await supabase
-        .from("vendor_profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (profileError) {
-        const dashboardError = handleSupabaseError(profileError, context);
-        console.error("Error getting vendor ID:", {
-          error: profileError,
-          dashboardError: dashboardError,
-          userId: user.id,
-          userType: userProfile.user_type,
-          context: context
-        });
-        return null;
-      }
-
-      if (!vendorProfile) {
-        console.log("No vendor profile found for user:", user.id);
-        return null;
-      }
-
-      console.log("Successfully found vendor profile:", vendorProfile.id);
-      return vendorProfile.id;
-    } catch (err) {
-      const dashboardError = handleSupabaseError(err, context);
-      console.error("Error getting vendor ID:", {
-        error: err,
-        dashboardError: dashboardError,
-        userId: user.id,
-        context: context
-      });
-      return null;
     }
-  };
+
+    return null;
+  }, [user?.id]); // Only include user.id as dependency to prevent infinite loops
 
   // Fetch vendor statistics with enhanced error handling
   const fetchVendorStats = useCallback(async (forceRefresh = false) => {
@@ -312,7 +345,7 @@ export function useVendorDashboard() {
     } finally {
       setStatsLoading(false);
     }
-  }, [vendorId, cache.stats, isCacheValid, supabase, user?.id]);
+  }, [cache.stats, isCacheValid, supabase, user?.id, vendorId]);
 
   // Fetch recent inquiries with enhanced error handling
   const fetchRecentInquiries = useCallback(async (forceRefresh = false) => {
@@ -385,7 +418,7 @@ export function useVendorDashboard() {
     } finally {
       setInquiriesLoading(false);
     }
-  }, [vendorId, cache.inquiries, isCacheValid, supabase, user?.id]);
+  }, [cache.inquiries, isCacheValid, supabase, user?.id, vendorId]);
 
   // Fetch upcoming events with enhanced error handling
   const fetchUpcomingEvents = useCallback(async (forceRefresh = false) => {
@@ -472,7 +505,7 @@ export function useVendorDashboard() {
     } finally {
       setEventsLoading(false);
     }
-  }, [vendorId, cache.upcomingEvents, isCacheValid, supabase, user?.id]);
+  }, [cache.upcomingEvents, isCacheValid, supabase, user?.id, vendorId]);
 
   // Calculate profile completion with enhanced error handling
   const calculateProfileCompletion = useCallback(async (forceRefresh = false) => {
@@ -618,7 +651,7 @@ export function useVendorDashboard() {
     } finally {
       setGrowthLoading(false);
     }
-  }, [vendorId, cache.monthlyGrowth, isCacheValid, supabase, user?.id]);
+  }, [cache.monthlyGrowth, isCacheValid, supabase, user?.id, vendorId]);
 
   // Utility function to calculate average response time
   const calculateAverageResponseTime = (responseTimes: any[]): string => {
@@ -779,8 +812,9 @@ export function useVendorDashboard() {
   // Load all data with enhanced error handling
   const loadDashboardData = useCallback(async (forceRefresh = false) => {
     if (!vendorId) {
-      console.log("Cannot load dashboard data: no vendor ID available");
-      setError("Vendor profile not found. This dashboard requires a vendor account. Please complete vendor onboarding or contact support if you believe this is an error.");
+      console.log("Cannot load dashboard data: no vendor ID available (this should not happen in normal flow)");
+      // Don't set error here since this function should only be called when vendorId is available
+      // The error should be handled by the useEffect that calls this function
       setLoading(false);
       return;
     }
@@ -789,16 +823,8 @@ export function useVendorDashboard() {
     setError(null);
     setDashboardError(null);
 
-    // Check if we can use cache for initial load
-    if (!forceRefresh && isCacheValid() && cache.stats && cache.inquiries.length > 0) {
-      setVendorStats(cache.stats);
-      setRecentInquiries(cache.inquiries);
-      setUpcomingEvents(cache.upcomingEvents);
-      setProfileCompletion(cache.profileCompletion);
-      setMonthlyGrowth(cache.monthlyGrowth);
-      setLoading(false);
-      return;
-    }
+    // Check if we can use cache for initial load (cache checks are handled in individual fetch functions)
+    // For initial load, we'll let individual functions handle their own cache logic
 
     try {
       await Promise.all([
@@ -816,7 +842,7 @@ export function useVendorDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [fetchVendorStats, fetchRecentInquiries, fetchUpcomingEvents, calculateProfileCompletion, calculateMonthlyGrowth, isCacheValid, cache, user?.id, vendorId]);
+  }, [fetchVendorStats, fetchRecentInquiries, fetchUpcomingEvents, calculateProfileCompletion, calculateMonthlyGrowth, user?.id, vendorId]);
 
   // Selective refresh functions for better UX
   const refreshStats = useCallback(() => {
@@ -891,16 +917,23 @@ export function useVendorDashboard() {
 
   // Load data when vendor ID is available
   useEffect(() => {
-    if (vendorId) {
-      console.log("Loading dashboard data for vendor:", vendorId);
-      loadDashboardData();
-    } else if (vendorId === null && user?.id) {
-      // Vendor ID is null but user exists - this means user is not a vendor
-      console.log("User is not a vendor, setting error state");
-      setError("Vendor profile not found. This dashboard is only available for vendor accounts. If you believe this is an error, please complete vendor onboarding or contact support.");
-      setLoading(false);
+    // Only proceed if we have a definitive vendorId (not undefined)
+    if (vendorId !== undefined) {
+      if (vendorId) {
+        console.log("Loading dashboard data for vendor:", vendorId);
+        // Clear any previous error when we successfully find vendor profile
+        setError(null);
+        setDashboardError(null);
+        loadDashboardData();
+      } else if (vendorId === null && user?.id) {
+        // Vendor ID is null but user exists - this means user is not a vendor
+        console.log("User is not a vendor, setting error state");
+        setError("Vendor profile not found. This dashboard is only available for vendor accounts. If you believe this is an error, please complete vendor onboarding or contact support.");
+        setLoading(false);
+      }
     }
-  }, [vendorId, loadDashboardData, user?.id]);
+    // Don't do anything if vendorId is still undefined (still loading)
+  }, [vendorId, user?.id]); // Removed loadDashboardData from dependencies to prevent infinite loop
 
   return {
     vendorStats,

@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { createClientComponentClient } from "@/lib/supabase";
 import { testVendorCreation } from "@/lib/test-vendor-creation";
 import { testSupabaseConfig } from "@/lib/test-supabase-config";
+import { testVendorOnboardingFlow } from "@/lib/test-vendor-onboarding";
 import {
   Button,
   Card,
@@ -116,6 +117,16 @@ export default function DebugPage() {
     });
   };
 
+  const testVendorOnboarding = async () => {
+    return runTest("vendorOnboardingFlow", async () => {
+      if (!user) {
+        return { success: false, error: "No authenticated user" };
+      }
+
+      return await testVendorOnboardingFlow(user.id);
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -174,6 +185,14 @@ export default function DebugPage() {
                   className="w-full"
                 >
                   Test Vendor Profile Creation
+                </Button>
+
+                <Button
+                  onClick={testVendorOnboarding}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  Test Full Vendor Onboarding Flow
                 </Button>
               </CardContent>
             </Card>

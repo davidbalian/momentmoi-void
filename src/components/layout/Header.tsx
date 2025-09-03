@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Heart,
   Baby,
@@ -16,11 +17,22 @@ import {
   Flower,
   ClipboardList,
   Star,
+  User,
+  ChevronDown,
+  LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 
 export function Header() {
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const { user, signOut, loading } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    setIsUserMenuOpen(false);
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -37,10 +49,19 @@ export function Header() {
       setLastScrollY(currentScrollY);
     };
 
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest(".user-menu")) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("click", handleClickOutside);
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("click", handleClickOutside);
     };
   }, [lastScrollY]);
 
@@ -87,23 +108,93 @@ export function Header() {
               </Link>
             </div>
 
-            {/* Right Side - Auth Buttons */}
+            {/* Right Side - Auth/User Buttons */}
             <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm" asChild>
-                <Link
-                  href="/auth/login"
-                  className="flex items-center space-x-2"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Log in</span>
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/favorites" className="flex items-center space-x-2">
-                  <HeartIcon className="w-4 h-4" />
-                  <span>Favorites</span>
-                </Link>
-              </Button>
+              {!loading && user ? (
+                <>
+                  {/* User Menu */}
+                  <div className="relative user-menu">
+                    <button
+                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                      className="flex items-center space-x-2 px-3 py-2 rounded-md border border-border hover:bg-gray-50 transition-colors"
+                    >
+                      <User className="w-4 h-4" />
+                      <span className="text-sm font-medium text-text-secondary">
+                        {user.email}
+                      </span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+
+                    {isUserMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-56 bg-white border border-border rounded-md shadow-lg z-50">
+                        <div className="py-1">
+                          {/* Navigation Links */}
+                          <Link
+                            href="/dashboard"
+                            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-text-primary hover:bg-gray-50 transition-colors"
+                            onClick={() => setIsUserMenuOpen(false)}
+                          >
+                            <LayoutDashboard className="w-4 h-4" />
+                            <span>Dashboard</span>
+                          </Link>
+
+                          <Link
+                            href="/dashboard/profile"
+                            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-text-primary hover:bg-gray-50 transition-colors"
+                            onClick={() => setIsUserMenuOpen(false)}
+                          >
+                            <User className="w-4 h-4" />
+                            <span>Profile</span>
+                          </Link>
+
+                          {/* Separator */}
+                          <div className="border-t border-border my-1"></div>
+
+                          {/* Logout */}
+                          <button
+                            onClick={handleSignOut}
+                            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4 text-red-400" />
+                            <span>Sign out</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link
+                      href="/favorites"
+                      className="flex items-center space-x-2"
+                    >
+                      <HeartIcon className="w-4 h-4" />
+                      <span>Favorites</span>
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {/* Login Button */}
+                  <Button variant="outline" size="sm" asChild>
+                    <Link
+                      href="/auth/login"
+                      className="flex items-center space-x-2"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>Log in</span>
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link
+                      href="/favorites"
+                      className="flex items-center space-x-2"
+                    >
+                      <HeartIcon className="w-4 h-4" />
+                      <span>Favorites</span>
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

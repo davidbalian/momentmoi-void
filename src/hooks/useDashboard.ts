@@ -91,7 +91,7 @@ export function useDashboard(): UseDashboardReturn {
       console.error("Error getting user type:", err);
       return null;
     }
-  }, [user?.id, supabase]);
+  }, [user?.id]); // Removed supabase from dependencies to prevent infinite loop
 
   // Initialize user type
   useEffect(() => {
@@ -126,7 +126,7 @@ export function useDashboard(): UseDashboardReturn {
           upcomingEvents: vendorDashboard.upcomingEvents,
           profileCompletion: vendorDashboard.profileCompletion,
           monthlyGrowth: vendorDashboard.monthlyGrowth,
-          businessName: vendorDashboard.vendorStats?.businessName,
+          businessName: vendorDashboard.vendorStats?.businessName || "Your Business",
         };
         
         setError(vendorDashboard.error);

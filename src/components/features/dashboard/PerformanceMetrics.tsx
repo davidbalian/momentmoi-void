@@ -1,5 +1,6 @@
 "use client";
 
+import { StatsCard } from "./StatsCard";
 import {
   Card,
   CardHeader,
@@ -14,6 +15,7 @@ import {
   DataErrorFallback,
 } from "@/components/ui/ErrorBoundary";
 import { DashboardError } from "@/lib/error-handler";
+import { Clock, MessageSquare, Eye, CheckCircle } from "lucide-react";
 
 interface PerformanceMetricsProps {
   avgResponseTime: string;
@@ -74,55 +76,61 @@ export function PerformanceMetrics({
 
   return (
     <ErrorBoundary fallback={DataErrorFallback}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Performance</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Avg Response Time</span>
-            {loading ? (
-              <Skeleton className="h-4 w-16" />
-            ) : (
-              <span className="text-sm font-medium">{avgResponseTime}</span>
-            )}
-          </div>
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">Performance</h3>
+        <div className="grid grid-cols-4 gap-6">
+          <StatsCard
+            title="Avg Response Time"
+            value={avgResponseTime}
+            icon={<Clock className="w-6 h-6 text-blue-600" />}
+            loading={loading}
+            error={error}
+            dashboardError={dashboardError}
+            layout="centered"
+            variant="default"
+            size="sm"
+          />
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Pending Inquiries</span>
-            {loading ? (
-              <Skeleton className="h-5 w-8 rounded-full" />
-            ) : (
-              <Badge variant="secondary">{pendingInquiries}</Badge>
-            )}
-          </div>
+          <StatsCard
+            title="Pending Inquiries"
+            value={pendingInquiries}
+            icon={<MessageSquare className="w-6 h-6 text-orange-600" />}
+            loading={loading}
+            error={error}
+            dashboardError={dashboardError}
+            layout="centered"
+            variant="default"
+            size="sm"
+          />
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">This Month Views</span>
-            {loading ? (
-              <Skeleton className="h-4 w-12" />
-            ) : (
-              <span
-                className={`text-sm font-medium ${
-                  monthlyGrowth >= 0 ? "text-green-600" : "text-red-600"
-                }`}
-              >
-                {monthlyGrowth >= 0 ? "+" : ""}
-                {monthlyGrowth}%
-              </span>
-            )}
-          </div>
+          <StatsCard
+            title="This Month Views"
+            value={`${monthlyGrowth >= 0 ? "+" : ""}${monthlyGrowth}%`}
+            icon={<Eye className="w-6 h-6 text-purple-600" />}
+            loading={loading}
+            error={error}
+            dashboardError={dashboardError}
+            valueClassName={
+              monthlyGrowth >= 0 ? "text-green-600" : "text-red-600"
+            }
+            layout="centered"
+            variant="default"
+            size="sm"
+          />
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Profile Completion</span>
-            {loading ? (
-              <Skeleton className="h-4 w-12" />
-            ) : (
-              <span className="text-sm font-medium">{profileCompletion}%</span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          <StatsCard
+            title="Profile Completion"
+            value={`${profileCompletion}%`}
+            icon={<CheckCircle className="w-6 h-6 text-green-600" />}
+            loading={loading}
+            error={error}
+            dashboardError={dashboardError}
+            layout="centered"
+            variant="default"
+            size="sm"
+          />
+        </div>
+      </div>
     </ErrorBoundary>
   );
 }

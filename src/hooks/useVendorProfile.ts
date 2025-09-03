@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { createClientComponentClient } from "@/lib/supabase";
+import { createClientComponentClient, supabase } from "@/lib/supabase";
 
 interface VendorProfile {
   id: string;
@@ -62,71 +62,122 @@ export function useVendorProfile(): UseVendorProfileReturn {
   const [error, setError] = useState<string | null>(null);
 
   const fetchProfile = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      setLoading(true);
-      setError(null);
+      // First check if user is a vendor by querying their profile
       const supabase = createClientComponentClient();
+      const { data: userProfile, error: userProfileError } = await supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("id", user.id)
+        .single();
 
-      // Fetch vendor profile
-      const { data: profileData, error: profileError } = await supabase
+      if (userProfileError) {
+        console.error("Error fetching user profile:", userProfileError);
+        setError("Failed to verify user type");
+        setLoading(false);
+        return;
+      }
+
+      // Only proceed if user is a vendor
+      if (userProfile.user_type !== "vendor") {
+        console.log("User is not a vendor, skipping vendor profile fetch");
+        setProfile(null);
+        setContacts([]);
+        setLocations([]);
+        setLoading(false);
+        return;
+      }
+
+      // Now fetch vendor profile with retry logic for timing issues
+    let profileData = null;
+    let vendorProfileError: any = null;
+    const maxRetries = 3;
+    const retryDelay = 1000;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const { data, error } = await supabase
         .from("vendor_profiles")
         .select("*")
         .eq("user_id", user.id)
         .single();
 
-      if (profileError) {
-        console.error("Error fetching vendor profile:", profileError);
-        console.error("Profile error details:", JSON.stringify(profileError, null, 2));
-        
+      profileData = data;
+      vendorProfileError = error;
+
+      if (vendorProfileError) {
+        console.error(`Error fetching vendor profile (attempt ${attempt}/${maxRetries}):`, vendorProfileError);
+
         // If vendor profile doesn't exist, that's expected for new vendors
-        if (profileError.code === 'PGRST116') {
+        if (vendorProfileError.code === 'PGRST116') {
           console.log("Vendor profile doesn't exist yet - this is normal for new vendors");
           setProfile(null);
           setContacts([]);
           setLocations([]);
           setError(null);
+          setLoading(false);
           return;
         }
-        
-        setError("Failed to load profile data");
-        return;
-      }
 
-      setProfile(profileData);
+        // If this is a 406 error and we have retries left, wait and try again
+        if (vendorProfileError.message?.includes('406') && attempt < maxRetries) {
+          console.log(`Received 406 error, retrying in ${retryDelay}ms (attempt ${attempt}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
 
-      // Fetch vendor contacts
-      const { data: contactsData, error: contactsError } = await supabase
-        .from("vendor_contacts")
-        .select("*")
-        .eq("vendor_id", profileData.id)
-        .order("is_primary", { ascending: false });
-
-      if (contactsError) {
-        // Error fetching vendor contacts
+        // If we've exhausted retries or it's a different error, break
+        break;
       } else {
-        setContacts(contactsData || []);
+        // Success, break out of retry loop
+        break;
       }
-
-      // Fetch vendor locations
-      const { data: locationsData, error: locationsError } = await supabase
-        .from("vendor_locations")
-        .select("*")
-        .eq("vendor_id", profileData.id);
-
-      if (locationsError) {
-        // Error fetching vendor locations
-      } else {
-        setLocations(locationsData || []);
-      }
-
-    } catch (err) {
-      setError("An unexpected error occurred");
-    } finally {
-      setLoading(false);
     }
-  };
+
+    if (vendorProfileError) {
+      console.error("Final error fetching vendor profile:", JSON.stringify(vendorProfileError, null, 2));
+      setError("Failed to load profile data. Please try refreshing the page.");
+      setLoading(false);
+      return;
+    }
+
+    setProfile(profileData);
+
+    // Fetch vendor contacts
+    const { data: contactsData, error: contactsError } = await supabase
+      .from("vendor_contacts")
+      .select("*")
+      .eq("vendor_id", profileData.id)
+      .order("is_primary", { ascending: false });
+
+    if (contactsError) {
+      console.error("Error fetching vendor contacts:", contactsError);
+    } else {
+      setContacts(contactsData || []);
+    }
+
+    // Fetch vendor locations
+    const { data: locationsData, error: locationsError } = await supabase
+      .from("vendor_locations")
+      .select("*")
+      .eq("vendor_id", profileData.id);
+
+    if (locationsError) {
+      console.error("Error fetching vendor locations:", locationsError);
+    } else {
+      setLocations(locationsData || []);
+    }
+  } catch (err) {
+    console.error("Error in fetchProfile:", err);
+    setError("An unexpected error occurred");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const saveProfile = async (data: {
     business_name: string;

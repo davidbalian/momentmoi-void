@@ -12,21 +12,33 @@ import { DashboardError } from "@/lib/error-handler";
 interface StatsCardProps {
   title: string;
   value: number | string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
+  subtext?: string | number;
   loading?: boolean;
   error?: string | null;
   dashboardError?: DashboardError | null;
   className?: string;
+  valueClassName?: string;
+  subtextClassName?: string;
+  layout?: "centered" | "left-aligned";
+  variant?: "default" | "elevated" | "compact";
+  size?: "default" | "sm" | "lg";
 }
 
 export function StatsCard({
   title,
   value,
   icon,
+  subtext,
   loading,
   error,
   dashboardError,
   className,
+  valueClassName,
+  subtextClassName,
+  layout = "centered",
+  variant = "default",
+  size = "default",
 }: StatsCardProps) {
   // Determine error type for better error display
   const getErrorType = () => {
@@ -42,69 +54,109 @@ export function StatsCard({
     return "data";
   };
 
+  // Get card styling based on variant
+  const getCardStyles = () => {
+    const baseStyles = "border rounded-lg";
+    const variantStyles = {
+      default: "border-gray-200",
+      elevated: "border-gray-200 shadow-sm",
+      compact: "border-gray-200",
+    };
+    return `${baseStyles} ${variantStyles[variant]}`;
+  };
+
+  // Get padding based on size
+  const getPadding = () => {
+    const sizeStyles = {
+      sm: "p-3",
+      default: "p-6",
+      lg: "p-8",
+    };
+    return sizeStyles[size];
+  };
+
+  // Get layout classes
+  const getLayoutClasses = () => {
+    const layoutStyles = {
+      centered: "flex flex-col text-center",
+      "left-aligned": "flex flex-col",
+    };
+    return layoutStyles[layout];
+  };
+
+  // Get value size classes
+  const getValueSizeClasses = () => {
+    const sizeStyles = {
+      sm: "text-xl",
+      default: "text-2xl",
+      lg: "text-3xl",
+    };
+    return sizeStyles[size];
+  };
+
   const errorType = getErrorType();
 
   if (error || dashboardError) {
     return (
-      <Card className={className}>
-        <CardContent className="p-6">
-          <div className="text-center">
+      <Card className={`${getCardStyles()} ${getPadding()} ${className || ""}`}>
+        <div className={`${getLayoutClasses()} gap-4`}>
+          <div className="flex items-center justify-between w-full">
+            <span
+              className={`${getValueSizeClasses()} font-bold text-gray-900 mb-0`}
+            >
+              !
+            </span>
             {errorType === "network" ? (
-              <div className="text-orange-600">
-                <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
-                <p className="text-sm font-medium">Connection Issue</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Check your internet connection
-                </p>
-              </div>
+              <AlertTriangle className="w-6 h-6 text-orange-600" />
             ) : errorType === "auth" ? (
-              <div className="text-red-600">
-                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-                <p className="text-sm font-medium">Authentication Error</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Please log in again
-                </p>
-              </div>
+              <AlertCircle className="w-6 h-6 text-red-600" />
             ) : (
-              <div className="text-blue-600">
-                <Info className="w-8 h-8 mx-auto mb-2" />
-                <p className="text-sm font-medium">Data Loading Issue</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Try refreshing the page
-                </p>
-              </div>
+              <Info className="w-6 h-6 text-blue-600" />
             )}
           </div>
-        </CardContent>
+          <span className="text-sm font-medium text-gray-600 text-left">
+            Error
+          </span>
+        </div>
       </Card>
     );
   }
 
   return (
     <ErrorBoundary fallback={DataErrorFallback}>
-      <Card className={className}>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              {icon}
-            </div>
-            <div className="flex-1">
-              {loading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-6 w-16" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              ) : (
-                <>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {typeof value === "number" ? value.toLocaleString() : value}
-                  </p>
-                  <p className="text-sm text-gray-500">{title}</p>
-                </>
-              )}
-            </div>
-          </div>
-        </CardContent>
+      <Card className={`${getCardStyles()} ${getPadding()} ${className || ""}`}>
+        <div className={`${getLayoutClasses()} gap-4`}>
+          {loading ? (
+            <>
+              <div className="flex items-center justify-between w-full">
+                <Skeleton
+                  className={`${
+                    size === "sm" ? "h-6" : size === "lg" ? "h-10" : "h-8"
+                  } w-16 mb-0`}
+                />
+                {icon && <Skeleton className="w-6 h-6 rounded" />}
+              </div>
+              <Skeleton className="h-4 w-20" />
+              {subtext && <Skeleton className="h-3 w-16 mt-1" />}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between w-full">
+                <span
+                  className={`${getValueSizeClasses()} font-bold text-gray-900 mb-0 ${
+                    valueClassName || ""
+                  }`}
+                >
+                  {typeof value === "number" ? value.toLocaleString() : value}
+                </span>
+                {icon}
+              </div>
+              <span className="text-sm font-medium text-gray-600 text-left">
+                {title}
+              </span>
+            </>
+          )}
+        </div>
       </Card>
     </ErrorBoundary>
   );

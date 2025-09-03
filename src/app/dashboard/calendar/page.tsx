@@ -17,7 +17,7 @@ import {
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
+import { createClientComponentClient } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   CalendarLinkForm,
@@ -63,6 +63,7 @@ interface Booking {
 
 export default function CalendarPage() {
   const { user } = useAuth();
+  const supabase = createClientComponentClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [availability, setAvailability] = useState<AvailabilityData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -695,35 +696,69 @@ export default function CalendarPage() {
 
     try {
       setBulkLoading("available");
-      const { data: vendorProfile } = await supabase
+      console.log("🚀 markAllAvailable started");
+      console.log("👤 User:", user?.id, user?.email);
+
+      const { data: vendorProfile, error: profileError } = await supabase
         .from("vendor_profiles")
-        .select("id")
+        .select("id, user_id")
         .eq("user_id", user.id)
         .single();
 
-      if (!vendorProfile) return;
+      console.log("📋 Vendor profile result:", { vendorProfile, profileError });
+      console.log("🔐 RLS Debug - Auth user ID:", user?.id);
+      console.log(
+        "🔐 RLS Debug - Vendor profile user_id:",
+        vendorProfile?.user_id
+      );
+      console.log(
+        "🔐 RLS Debug - IDs match:",
+        user?.id === vendorProfile?.user_id
+      );
+
+      if (profileError) {
+        console.error("❌ Error fetching vendor profile:", profileError);
+        return;
+      }
+
+      if (!vendorProfile) {
+        console.error("❌ No vendor profile found for user:", user.id);
+        return;
+      }
+
+      console.log("✅ Vendor profile found:", vendorProfile.id);
 
       const days = getCalendarDays().filter((day) => day.isCurrentMonth);
       const dateStrings = days.map(
         (day) => day.date.toISOString().split("T")[0]
       );
 
+      console.log("📅 Current month days:", dateStrings.length, "days");
+      console.log("📅 Date strings:", dateStrings);
+      console.log("📊 Current availability records:", availability.length);
+
       // Batch update existing records
-      const { error: updateError } = await supabase
+      console.log("🔄 Starting batch update of existing records");
+      const { data: updateData, error: updateError } = await supabase
         .from("vendor_availability")
         .update({ is_available: true })
         .eq("vendor_id", vendorProfile.id)
         .in("date", dateStrings);
 
+      console.log("📊 Update result:", { updateData, updateError });
+
       if (updateError) {
-        console.error("Error updating existing availability:", updateError);
+        console.error("❌ Error updating existing availability:", updateError);
       }
 
       // Insert records for dates that don't exist
       const existingDates = availability.map((a) => a.date);
+      console.log("📋 Existing dates in state:", existingDates);
       const newDates = dateStrings.filter(
         (date) => !existingDates.includes(date)
       );
+
+      console.log("🆕 New dates to insert:", newDates.length, "dates");
 
       if (newDates.length > 0) {
         const newRecords = newDates.map((date) => ({
@@ -732,16 +767,46 @@ export default function CalendarPage() {
           is_available: true,
         }));
 
-        const { error: insertError } = await supabase
+        console.log("📝 New records to insert:", newRecords);
+        console.log(
+          "📝 Date format check - first date:",
+          newRecords[0]?.date,
+          "type:",
+          typeof newRecords[0]?.date
+        );
+        console.log(
+          "📝 Vendor ID format check:",
+          newRecords[0]?.vendor_id,
+          "type:",
+          typeof newRecords[0]?.vendor_id
+        );
+
+        const { data: insertData, error: insertError } = await supabase
           .from("vendor_availability")
           .insert(newRecords);
 
+        console.log("📊 Insert result:", { insertData, insertError });
+
         if (insertError) {
-          console.error("Error inserting new availability:", insertError);
+          console.error("❌ Error inserting new availability:", insertError);
+          console.error("❌ Insert error details:", {
+            message: insertError?.message,
+            details: insertError?.details,
+            hint: insertError?.hint,
+            code: insertError?.code,
+          });
+        } else {
+          console.log(
+            "✅ Successfully inserted new availability records:",
+            insertData
+          );
         }
+      } else {
+        console.log("ℹ️ No new dates to insert");
       }
 
       // Update local state instead of reloading
+      console.log("🔄 Updating local state");
       setAvailability((prev) => {
         const updated = [...prev];
 
@@ -758,12 +823,21 @@ export default function CalendarPage() {
           }
         });
 
+        console.log("📊 Updated availability count:", updated.length);
         return updated;
       });
+
+      console.log("✅ markAllAvailable completed successfully");
     } catch (error) {
-      console.error("Error marking all available:", error);
+      console.error("❌ Unexpected error in markAllAvailable:", error);
+      console.error("❌ Error type:", typeof error);
+      console.error(
+        "❌ Error stack:",
+        error instanceof Error ? error.stack : "No stack trace"
+      );
     } finally {
       setBulkLoading(null);
+      console.log("🏁 markAllAvailable finished, cleared bulk loading state");
     }
   };
 
@@ -772,35 +846,82 @@ export default function CalendarPage() {
 
     try {
       setBulkLoading("unavailable");
-      const { data: vendorProfile } = await supabase
+      console.log("🚀 markAllUnavailable started");
+      console.log("👤 User:", user?.id, user?.email);
+
+      const { data: vendorProfile, error: profileError } = await supabase
         .from("vendor_profiles")
-        .select("id")
+        .select("id, user_id")
         .eq("user_id", user.id)
         .single();
 
-      if (!vendorProfile) return;
+      console.log("📋 Vendor profile result:", { vendorProfile, profileError });
+      console.log("🔐 RLS Debug - Auth user ID:", user?.id);
+      console.log(
+        "🔐 RLS Debug - Vendor profile user_id:",
+        vendorProfile?.user_id
+      );
+      console.log(
+        "🔐 RLS Debug - IDs match:",
+        user?.id === vendorProfile?.user_id
+      );
+
+      if (profileError) {
+        console.error("❌ Error fetching vendor profile:", profileError);
+        console.error("❌ Profile error details:", {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code,
+        });
+        return;
+      }
+
+      if (!vendorProfile) {
+        console.error("❌ No vendor profile found for user:", user.id);
+        return;
+      }
+
+      console.log("✅ Vendor profile found:", vendorProfile.id);
 
       const days = getCalendarDays().filter((day) => day.isCurrentMonth);
       const dateStrings = days.map(
         (day) => day.date.toISOString().split("T")[0]
       );
 
+      console.log("📅 Current month days:", dateStrings.length, "days");
+      console.log("📅 Date strings:", dateStrings);
+      console.log("📊 Current availability records:", availability.length);
+
       // Batch update existing records
-      const { error: updateError } = await supabase
+      console.log("🔄 Starting batch update of existing records");
+      const { data: updateData, error: updateError } = await supabase
         .from("vendor_availability")
         .update({ is_available: false })
         .eq("vendor_id", vendorProfile.id)
         .in("date", dateStrings);
 
+      console.log("📊 Update result:", { updateData, updateError });
+
       if (updateError) {
-        console.error("Error updating existing availability:", updateError);
+        console.error("❌ Error updating existing availability:", updateError);
+        console.error("❌ Update error details:", {
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+          code: updateError.code,
+        });
       }
 
       // Insert records for dates that don't exist
       const existingDates = availability.map((a) => a.date);
+      console.log("📋 Existing dates in state:", existingDates);
       const newDates = dateStrings.filter(
         (date) => !existingDates.includes(date)
       );
+
+      console.log("🆕 New dates to insert:", newDates.length, "dates");
+      console.log("🆕 New date strings:", newDates);
 
       if (newDates.length > 0) {
         const newRecords = newDates.map((date) => ({
@@ -809,38 +930,103 @@ export default function CalendarPage() {
           is_available: false,
         }));
 
-        const { error: insertError } = await supabase
+        console.log("📝 New records to insert:", newRecords);
+        console.log("📝 Records count:", newRecords.length);
+        console.log("📝 First record sample:", newRecords[0]);
+        console.log(
+          "📝 Last record sample:",
+          newRecords[newRecords.length - 1]
+        );
+        console.log(
+          "📝 Date format check - first date:",
+          newRecords[0]?.date,
+          "type:",
+          typeof newRecords[0]?.date
+        );
+        console.log(
+          "📝 Vendor ID format check:",
+          newRecords[0]?.vendor_id,
+          "type:",
+          typeof newRecords[0]?.vendor_id
+        );
+
+        const { data: insertData, error: insertError } = await supabase
           .from("vendor_availability")
           .insert(newRecords);
 
+        console.log("📊 Insert result:", { insertData, insertError });
+
         if (insertError) {
-          console.error("Error inserting new availability:", insertError);
+          console.error("❌ Error inserting new availability:", insertError);
+          console.error("❌ Insert error type:", typeof insertError);
+          console.error(
+            "❌ Insert error keys:",
+            Object.keys(insertError || {})
+          );
+          console.error("❌ Insert error details:", {
+            message: insertError?.message,
+            details: insertError?.details,
+            hint: insertError?.hint,
+            code: insertError?.code,
+          });
+
+          // Log additional debugging info
+          console.error(
+            "❌ Full insert error object:",
+            JSON.stringify(insertError, null, 2)
+          );
+          console.error(
+            "❌ New records being inserted:",
+            JSON.stringify(newRecords, null, 2)
+          );
+        } else {
+          console.log(
+            "✅ Successfully inserted new availability records:",
+            insertData
+          );
         }
+      } else {
+        console.log("ℹ️ No new dates to insert");
       }
 
       // Update local state instead of reloading
+      console.log("🔄 Updating local state");
+      const previousAvailabilityCount = availability.length;
       setAvailability((prev) => {
         const updated = [...prev];
+        console.log("📊 Previous availability count:", prev.length);
 
         // Update existing records
         dateStrings.forEach((dateString) => {
           const existingIndex = updated.findIndex((a) => a.date === dateString);
           if (existingIndex !== -1) {
+            console.log(`🔄 Updating existing record for ${dateString}`);
             updated[existingIndex] = {
               ...updated[existingIndex],
               is_available: false,
             };
           } else {
+            console.log(`🆕 Adding new record for ${dateString}`);
             updated.push({ date: dateString, is_available: false });
           }
         });
 
+        console.log("📊 Updated availability count:", updated.length);
+        console.log("📊 New availability records:", updated.slice(-5)); // Show last 5 records
         return updated;
       });
+
+      console.log("✅ markAllUnavailable completed successfully");
     } catch (error) {
-      console.error("Error marking all unavailable:", error);
+      console.error("❌ Unexpected error in markAllUnavailable:", error);
+      console.error("❌ Error type:", typeof error);
+      console.error(
+        "❌ Error stack:",
+        error instanceof Error ? error.stack : "No stack trace"
+      );
     } finally {
       setBulkLoading(null);
+      console.log("🏁 markAllUnavailable finished, cleared bulk loading state");
     }
   };
 
@@ -930,12 +1116,14 @@ export default function CalendarPage() {
     <DashboardLayout>
       <div className="space-y-6 max-w-8xl mx-auto">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900">Calendar</h1>
+          <h1 className="font-semibold text-gray-900">Calendar</h1>
         </div>
 
+        {/* Two Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Main Calendar Column */}
-          <div className="lg:col-span-3">
+          {/* Left Column - Calendar + Booking Analytics */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Main Calendar Card */}
             <Card className="p-6">
               {/* Month Navigation */}
               <div className="flex items-center justify-between mb-6">
@@ -1007,29 +1195,29 @@ export default function CalendarPage() {
                       disabled={!isCurrentMonth || isUpdating}
                       title={eventTooltip || undefined}
                       className={`
-                        p-2 h-12 text-sm rounded-md transition-colors relative group
-                        ${
-                          !isCurrentMonth
-                            ? "text-gray-300 cursor-default"
-                            : isSelectingDates
-                            ? "hover:bg-gray-50 cursor-pointer"
-                            : "cursor-default"
-                        }
-                        ${
-                          hasConflicts
-                            ? "bg-orange-50 text-orange-700 border-2 border-orange-300"
-                            : isCurrentMonth && !isAvailable
-                            ? "bg-red-50 text-red-700 border border-red-200"
-                            : isCurrentMonth && isSelected
-                            ? "bg-blue-50 text-blue-700 border border-blue-200"
-                            : hasExternalEvents && isCurrentMonth
-                            ? "bg-purple-50 text-purple-700 border border-purple-200"
-                            : ""
-                        }
-                        ${isToday ? "ring-2 ring-blue-500" : ""}
-                        ${isUpdating ? "opacity-50 cursor-not-allowed" : ""}
-                        ${hasExternalEvents ? "hover:bg-purple-100" : ""}
-                      `}
+                    p-2 h-12 text-sm rounded-md transition-colors relative group
+                    ${
+                      !isCurrentMonth
+                        ? "text-gray-300 cursor-default"
+                        : isSelectingDates
+                        ? "hover:bg-gray-50 cursor-pointer"
+                        : "cursor-default"
+                    }
+                    ${
+                      hasConflicts
+                        ? "bg-orange-50 text-orange-700 border-2 border-orange-300"
+                        : isCurrentMonth && !isAvailable
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : isCurrentMonth && isSelected
+                        ? "bg-blue-50 text-blue-700 border border-blue-200"
+                        : hasExternalEvents && isCurrentMonth
+                        ? "bg-purple-50 text-purple-700 border border-purple-200"
+                        : ""
+                    }
+                    ${isToday ? "ring-2 ring-blue-500" : ""}
+                    ${isUpdating ? "opacity-50 cursor-not-allowed" : ""}
+                    ${hasExternalEvents ? "hover:bg-purple-100" : ""}
+                  `}
                     >
                       {date.getDate()}
                       {isUpdating && (
@@ -1041,13 +1229,13 @@ export default function CalendarPage() {
                         <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center">
                           <div
                             className={`
-                            flex items-center gap-1 text-xs rounded px-1
-                            ${
-                              hasConflicts
-                                ? "text-orange-600 bg-orange-100 bg-opacity-90"
-                                : "text-purple-600 bg-purple-100 bg-opacity-80"
-                            }
-                          `}
+                        flex items-center gap-1 text-xs rounded px-1
+                        ${
+                          hasConflicts
+                            ? "text-orange-600 bg-orange-100 bg-opacity-90"
+                            : "text-purple-600 bg-purple-100 bg-opacity-80"
+                        }
+                      `}
                           >
                             <Clock className="w-3 h-3" />
                             <span>{externalEventsForDate.length}</span>
@@ -1120,7 +1308,7 @@ export default function CalendarPage() {
             </Card>
           </div>
 
-          {/* Action Column */}
+          {/* Right Column - Actions */}
           <div className="lg:col-span-2">
             <Card className="p-6">
               <div className="space-y-4">
@@ -1195,21 +1383,6 @@ export default function CalendarPage() {
                       )}
                     </Button>
                   </div>
-                </div>
-
-                {/* Booking Analytics */}
-                <div className="pt-4 border-t border-gray-200">
-                  {bookingsLoading ? (
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
-                      Loading bookings...
-                    </div>
-                  ) : (
-                    <BookingAnalytics
-                      bookings={bookings}
-                      month={monthNames[currentDate.getMonth()]}
-                    />
-                  )}
                 </div>
 
                 {/* External Calendar */}
@@ -1343,6 +1516,25 @@ export default function CalendarPage() {
               </div>
             </Card>
           </div>
+        </div>
+
+        {/* Booking Analytics - Full Width */}
+        <div className="col-span-full">
+          <Card className="p-6">
+            <div>
+              {bookingsLoading ? (
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                  Loading bookings...
+                </div>
+              ) : (
+                <BookingAnalytics
+                  bookings={bookings}
+                  month={monthNames[currentDate.getMonth()]}
+                />
+              )}
+            </div>
+          </Card>
         </div>
       </div>
 

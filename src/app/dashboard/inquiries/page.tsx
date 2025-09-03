@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout";
 import { Card, CardContent, Badge, Button } from "@/components/ui";
+import { StatsCard } from "@/components/features/dashboard";
 import { BookingService } from "@/lib/booking-service";
 import {
   MessageSquare,
@@ -354,7 +355,7 @@ export default function InquiriesPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-display text-3xl font-light text-text-primary">
+            <h1 className="text-display font-light text-text-primary">
               Inquiries
             </h1>
             <p className="text-body text-text-secondary mt-2">
@@ -364,90 +365,54 @@ export default function InquiriesPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Total</p>
-                  <p className="text-2xl font-semibold text-text-primary">
-                    {stats.total}
-                  </p>
-                </div>
-                <MessageSquare className="w-8 h-8 text-primary-500" />
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-6">
+          <StatsCard
+            title="Total Inquiries"
+            value={stats.total}
+            icon={<MessageSquare className="w-6 h-6 text-primary-600" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">New</p>
-                  <p className="text-2xl font-semibold text-blue-600">
-                    {stats.new}
-                  </p>
-                </div>
-                <Clock className="w-8 h-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="New Inquiries"
+            value={stats.new}
+            icon={<Clock className="w-6 h-6 text-blue-600" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Responded</p>
-                  <p className="text-2xl font-semibold text-yellow-600">
-                    {stats.responded}
-                  </p>
-                </div>
-                <MessageSquare className="w-8 h-8 text-yellow-500" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Responded"
+            value={stats.responded}
+            icon={<MessageSquare className="w-6 h-6 text-yellow-600" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Booked</p>
-                  <p className="text-2xl font-semibold text-green-600">
-                    {stats.booked}
-                  </p>
-                </div>
-                <CheckCircle className="w-8 h-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Booked"
+            value={stats.booked}
+            icon={<CheckCircle className="w-6 h-6 text-green-600" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Declined</p>
-                  <p className="text-2xl font-semibold text-red-600">
-                    {stats.declined}
-                  </p>
-                </div>
-                <XCircle className="w-8 h-8 text-red-500" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Declined"
+            value={stats.declined}
+            icon={<XCircle className="w-6 h-6 text-red-600" />}
+            loading={loading}
+            error={error}
+          />
 
-          <Card variant="elevated">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-text-secondary">Archived</p>
-                  <p className="text-2xl font-semibold text-gray-600">
-                    {stats.archived}
-                  </p>
-                </div>
-                <Archive className="w-8 h-8 text-gray-500" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Archived"
+            value={stats.archived}
+            icon={<Archive className="w-6 h-6 text-gray-600" />}
+            loading={loading}
+            error={error}
+          />
         </div>
 
         {/* Filters and Search */}

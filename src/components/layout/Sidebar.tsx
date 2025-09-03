@@ -159,25 +159,29 @@ export function Sidebar({ className }: SidebarProps) {
 
               {/* Profile Dropdown */}
               {isProfileOpen && (
-                <Card className="absolute bottom-full left-0 right-0 mb-2 p-2 shadow-lg border border-border">
-                  <div className="space-y-1">
+                <div className="absolute bottom-full left-0 right-0 mb-2 w-full bg-white border border-border rounded-md shadow-lg z-50">
+                  <div className="py-1">
                     <Link
                       href="/dashboard/profile"
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors duration-200"
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-text-primary hover:bg-gray-50 transition-colors"
                       onClick={() => setIsProfileOpen(false)}
                     >
                       <Icon name="User" size="sm" className="text-gray-400" />
-                      Profile Settings
+                      <span>Profile</span>
                     </Link>
+
+                    {/* Separator */}
+                    <div className="border-t border-border my-1"></div>
+
                     <button
                       onClick={handleSignOut}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200"
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <Icon name="LogOut" size="sm" className="text-red-400" />
-                      Sign Out
+                      <span>Sign Out</span>
                     </button>
                   </div>
-                </Card>
+                </div>
               )}
             </>
           )}

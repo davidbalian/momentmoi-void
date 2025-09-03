@@ -96,7 +96,7 @@ export function useImageUpload({
       const galleryData: GalleryImageInsert = {
         vendor_id: vendorId,
         image_url: imageUrl,
-        caption: caption || null,
+        caption: caption || undefined,
         display_order: displayOrder,
         is_featured: isFeatured,
       };

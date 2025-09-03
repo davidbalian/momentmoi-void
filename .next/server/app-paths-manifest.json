@@ -1,6 +1,3 @@
 {
-  "/page": "app/page.js",
-  "/vendors/[slug]/page": "app/vendors/[slug]/page.js",
-  "/auth/login/page": "app/auth/login/page.js",
-  "/vendors/page": "app/vendors/page.js"
+  "/dashboard/profile/page": "app/dashboard/profile/page.js"
 }

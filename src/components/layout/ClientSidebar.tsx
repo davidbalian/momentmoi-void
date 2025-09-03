@@ -32,33 +32,33 @@ const plannerSidebarItems: ClientSidebarItem[] = [
   },
   {
     label: "Event Details",
-    href: "/dashboard/client/event",
+    href: "/dashboard/event",
     icon: "Calendar",
   },
   {
     label: "Vendors",
-    href: "/dashboard/client/vendors",
+    href: "/dashboard/vendors",
     icon: "Store",
     badge: "New",
   },
   {
     label: "Guests",
-    href: "/dashboard/client/guests",
+    href: "/dashboard/guests",
     icon: "Users",
   },
   {
     label: "Checklist",
-    href: "/dashboard/client/checklist",
+    href: "/dashboard/checklist",
     icon: "CheckSquare",
   },
   {
     label: "Budget",
-    href: "/dashboard/client/budget",
+    href: "/dashboard/budget",
     icon: "DollarSign",
   },
   {
     label: "Settings",
-    href: "/dashboard/client/profile",
+    href: "/dashboard/profile",
     icon: "Settings",
   },
 ];
@@ -71,18 +71,18 @@ const viewerSidebarItems: ClientSidebarItem[] = [
   },
   {
     label: "Vendors",
-    href: "/dashboard/client/vendors",
+    href: "/dashboard/vendors",
     icon: "Store",
     badge: "New",
   },
   {
     label: "Saved Vendors",
-    href: "/dashboard/client/favorites",
+    href: "/dashboard/vendors/favorites",
     icon: "Heart",
   },
   {
     label: "Settings",
-    href: "/dashboard/client/profile",
+    href: "/dashboard/profile",
     icon: "Settings",
   },
 ];
@@ -224,7 +224,7 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
               <span>Planning together</span>
             </div>
             <Link
-              href="/dashboard/client/partner"
+              href="/dashboard/partner"
               className="text-xs text-primary-600 hover:text-primary-700 font-medium"
             >
               Manage
@@ -264,20 +264,20 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
 
               {/* Profile Dropdown */}
               {isProfileOpen && (
-                <Card className="absolute bottom-full left-0 right-0 mb-2 p-2 shadow-lg border border-border">
-                  <div className="space-y-1">
+                <div className="absolute bottom-full left-0 right-0 mb-2 w-full bg-white border border-border rounded-md shadow-lg z-50">
+                  <div className="py-1">
                     <Link
-                      href="/dashboard/client/profile"
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors duration-200"
+                      href="/dashboard/profile"
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-text-primary hover:bg-gray-50 transition-colors"
                       onClick={() => setIsProfileOpen(false)}
                     >
                       <Icon name="User" size="sm" className="text-gray-400" />
-                      Profile Settings
+                      <span>Profile Settings</span>
                     </Link>
                     {userType === "planner" && (
                       <Link
-                        href="/dashboard/client/partner"
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors duration-200"
+                        href="/dashboard/partner"
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-text-primary hover:bg-gray-50 transition-colors"
                         onClick={() => setIsProfileOpen(false)}
                       >
                         <Icon
@@ -285,18 +285,22 @@ export function ClientSidebar({ className }: ClientSidebarProps) {
                           size="sm"
                           className="text-pink-400"
                         />
-                        Partner Settings
+                        <span>Partner Settings</span>
                       </Link>
                     )}
+
+                    {/* Separator */}
+                    <div className="border-t border-border my-1"></div>
+
                     <button
                       onClick={handleSignOut}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200"
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <Icon name="LogOut" size="sm" className="text-red-400" />
-                      Sign Out
+                      <span>Sign Out</span>
                     </button>
                   </div>
-                </Card>
+                </div>
               )}
             </>
           )}

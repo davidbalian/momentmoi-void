@@ -325,7 +325,7 @@ export default function EditServicePage() {
               Back to Services
             </Button>
             <div>
-              <h1 className="text-display text-3xl font-light text-text-primary">
+              <h1 className="text-display font-light text-text-primary">
                 Edit Service
               </h1>
               <p className="text-body text-text-secondary mt-2">

@@ -339,7 +339,7 @@ export default function VendorsPage() {
                 : `${vendors.length} vendors found`}
             </h2>
             {user && (
-              <Link href="/dashboard/client/vendors/favorites">
+              <Link href="/dashboard/vendors/favorites">
                 <Button variant="outline" size="sm">
                   <Icon name="Heart" size="sm" className="mr-2" />
                   View Favorites ({getFavoritesCount()})
