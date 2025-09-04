@@ -1,9 +1,8 @@
 "use client";
 
-import React from "react";
-import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
+import Link from "next/link";
 
 interface FeaturedVendor {
   id: string;
@@ -32,7 +31,10 @@ export function FeaturedVendorCard({ vendor }: FeaturedVendorCardProps) {
         {/* Background Image */}
         <div
           className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-110"
-          style={{ backgroundImage: `url(${featuredImage})` }}
+          // style={{ backgroundImage: `url(${featuredImage})` }}
+          style={{
+            backgroundImage: `url(${"https://picsum.photos/seed/picsum/300/300"})`,
+          }}
         />
 
         {/* Overlay for better text readability */}

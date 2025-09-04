@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { FeaturedVendorCard } from "@/components/features/vendors/FeaturedVendorCard";
+import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { FeaturedVendorCard } from "@/components/features/vendors/FeaturedVendorCard";
-import { Header } from "@/components/layout/Header";
 import { useFeaturedVendors } from "@/hooks/useFeaturedVendors";
 import {
+  Camera,
   ChevronRight,
   MapPin,
-  Camera,
   Music,
   UtensilsCrossed,
 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function HomePage() {
   const [currentEventType, setCurrentEventType] = useState(0);
@@ -118,8 +118,13 @@ export default function HomePage() {
             {/* Right Column - Hero Image */}
             <div className="flex items-center justify-center h-full">
               <div className="w-full max-w-md h-full relative overflow-hidden rounded-xl">
-                <img
+                {/* <img
                   src="https://momentmoi.com/wp-content/uploads/2025/05/All-Cyprus-wedding-vendors.webp"
+                  alt="All Cyprus wedding vendors collection"
+                  className="w-full h-full object-cover rounded-xl"
+                /> */}
+                <img
+                  src="https://picsum.photos/seed/picsum/300/300"
                   alt="All Cyprus wedding vendors collection"
                   className="w-full h-full object-cover rounded-xl"
                 />
